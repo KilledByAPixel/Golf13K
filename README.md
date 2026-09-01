@@ -1,4 +1,4 @@
-# ☀️ Sunshine Golf Classic
+# ☀️⛳ Sunshine Golf Classic
 
 **Eighteen holes. Eleven clubs. One rainbow, and it is the one you leave behind you.**
 
