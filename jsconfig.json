@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+  },
+  "include": [
+    "./src/*.js",
+    "./game/*.js",
+  ],
+  "exclude": [
+  ]
+}

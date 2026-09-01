@@ -1,0 +1,34 @@
+{
+  "name": "sunshine-golf-classic",
+  "version": "0.11.0",
+  "description": "SUNSHINE GOLF CLASSIC - procedural 18-hole golf for JS13K 2026, built on LittleJS (js13k branch)",
+  "keywords": [
+    "JS13K",
+    "LittleJS",
+    "golf",
+    "game",
+    "webgl"
+  ],
+  "author": "Frank Force",
+  "license": "SEE LICENSE IN LICENSE",
+  "scripts": {
+    "start": "node serve.js",
+    "build": "node game/build.mjs",
+    "sim": "node game/tools/sim.mjs",
+    "unit": "node game/tools/unit.mjs",
+    "shots": "node game/tools/shots.mjs",
+    "quickcheck": "node game/tools/quickcheck.mjs",
+    "music": "node game/tools/music.mjs",
+    "shotdiff": "node game/tools/shotdiff.mjs",
+    "artifact": "node game/tools/artifact.mjs",
+    "test": "node test/smoke.mjs"
+  },
+  "devDependencies": {
+    "ect-bin": "~1.4.1",
+    "google-closure-compiler": "~20230502.0.0",
+    "playwright-core": "^1.62.1",
+    "roadroller": "~2.1.0",
+    "typescript": "~5.1.6",
+    "uglify-js": "~3.17.4"
+  }
+}

@@ -1,0 +1,16 @@
+# node files
+node_modules
+
+# editor files
+.vscode
+
+# local files
+local
+
+# generated outputs
+game/build
+game/*.zip
+game/shots
+game/shots-prev
+game/artifact.html
+dist

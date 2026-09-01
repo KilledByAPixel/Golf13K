@@ -1,0 +1,283 @@
+<head>
+<title>RAINBOW GOLF TOUR — music lab</title>
+<meta charset=utf-8>
+<link rel=icon href=data:,>
+<style>
+* { box-sizing: border-box }
+body { margin:0; padding:18px 22px; background:#14161c; color:#dfe3ea;
+       font:14px/1.5 ui-monospace,Consolas,monospace }
+h1 { font-size:17px; margin:0 0 2px; letter-spacing:.06em }
+.sub { color:#7d8698; margin:0 0 16px; font-size:12.5px; max-width:70em }
+.sub b { color:#b9c2d2; font-weight:600 }
+button { font:inherit; background:#262b36; color:#dfe3ea; border:1px solid #39404f;
+         border-radius:5px; padding:5px 11px; cursor:pointer }
+button:hover { background:#2f3644 }
+button.on { background:#2a6; border-color:#2a6; color:#08130c }
+button.big { font-size:16px; padding:9px 26px }
+input[type=text] { font:inherit; background:#0e1015; color:#9fe6b6; border:1px solid #39404f;
+                   border-radius:5px; padding:5px 8px; width:100% }
+input[type=range] { vertical-align:middle }
+table { border-collapse:collapse; width:100%; margin:6px 0 18px }
+td { padding:5px 8px 5px 0; vertical-align:middle }
+td.n { color:#8fa; width:6.5em; white-space:nowrap }
+td.b { width:5.5em }
+td.v { width:11em; color:#7d8698; font-size:12px }
+.bar { display:flex; gap:3px; margin:10px 0 4px }
+.bar i { flex:1; height:26px; background:#20242e; border-radius:2px }
+.bar i.k { background:#e8654a } .bar i.h { background:#6cc7e8 }
+.bar i.s { background:#e8c04a } .bar i.l { background:#8ee86c }
+.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:10px 0 }
+#log { height:150px; overflow:auto; background:#0e1015; border:1px solid #262b36;
+       border-radius:5px; padding:8px 10px; font-size:12px; color:#93a }
+#log b { color:#dfe3ea; font-weight:400 }
+.note { color:#7d8698; font-size:12px; margin-top:4px }
+</style>
+</head><body>
+
+<h1>MUSIC LAB</h1>
+<p class=sub>
+Plays the <b>real <code>updateMusic</code></b> straight out of <code>game/sfx.js</code> — this page
+never copies it, so what you hear is what the game does. Edit an instrument
+below and hit <b>apply</b> to hear it immediately; edit the <i>structure</i>
+(the scale, the beat conditions, which voice plays when) in
+<code>game/sfx.js</code> and just reload this page.
+When you like an instrument, <b>copy arrays</b> puts them back in
+<code>sfx.js</code> form on the clipboard.
+</p>
+
+<div class=row>
+  <button class="big" id=play>▶ PLAY</button>
+  <span>beat <b id=beat>0</b></span>
+  <span style="margin-left:14px">tempo <input type=range id=tempo min=60 max=400 value=133 step=1>
+  <b id=tempoV>133</b> ms/beat</span>
+  <span style="margin-left:14px">master <input type=range id=vol min=0 max=100 value=30> <b id=volV>0.30</b></span>
+</div>
+
+<div class=bar id=bar></div>
+<div class=note>each block is one beat; colour = which voice fired
+(<span style="color:#e8654a">kick</span>
+ <span style="color:#6cc7e8">hat</span>
+ <span style="color:#e8c04a">bass</span>
+ <span style="color:#8ee86c">lead</span>)</div>
+
+<h1 style="margin-top:22px">INSTRUMENTS</h1>
+<p class=sub>zzfx parameter arrays, read live from <code>sfx.js</code>. <b>Parameter 20 (filter)
+is stripped from the release</b> — see <code>ZZFX_FILTER</code> in build.mjs — so
+a value there works here and in the dev build but does NOTHING in the zip.
+This page warns you if you set one.</p>
+<table id=inst></table>
+
+<div class=row>
+  <button id=copy>copy arrays</button>
+  <button id=reload>re-read sfx.js</button>
+</div>
+
+<h1 style="margin-top:22px">SOUND EFFECTS</h1>
+<p class=sub>Fire these over the music to judge the mix — the music should sit under them.</p>
+<div class=row id=fx></div>
+
+<h1 style="margin-top:22px">NOTE LOG</h1>
+<div id=log></div>
+
+<!-- the engine, exactly as index.html loads it, minus the game itself -->
+<script src=../../src/engineDebug.js></script>
+<script src=../../src/engineMath.js></script>
+<script src=../../src/engineUtilities.js></script>
+<script src=../../src/engineSettings.js></script>
+<script src=../../src/engineObject.js></script>
+<script src=../../src/engineDraw.js></script>
+<script src=../../src/engineInput.js></script>
+<script src=../../src/engineAudio.js></script>
+<script src=../../src/engineTileLayer.js></script>
+<script src=../../src/engineParticles.js></script>
+<script src=../../src/engineMedals.js></script>
+<script src=../../src/engine.js></script>
+<script>SURF_BUNKER = 4;</script>   <!-- sfxBounce's only dependency on course.js -->
+<script src=../sfx.js></script>
+<script>
+'use strict';
+audioInit();
+setSoundEnable(1);
+
+// The instruments are declared `MUSIC && new Sfx(...)`, so with MUSIC = 0
+// they are the number 0 and every call below would throw. Say so instead.
+if (!MUSIC)
+{
+    document.body.innerHTML = '<h1>MUSIC LAB</h1><p class=sub>'
+        + '<code>MUSIC = 0</code> in <code>game/sfx.js</code>, so the instruments were never built. '
+        + 'Set it to 1 and reload.</p>';
+    throw 'MUSIC is off';
+}
+
+// ---- which globals are the music's voices, in play order ----
+const VOICES = [
+    ['snd_kick', 'k', snd_kick],
+    ['snd_hat',  'h', snd_hat],
+    ['snd_bass', 's', snd_bass],
+    ['snd_lead', 'l', snd_lead],
+];
+
+// Wrap each voice's play/playNote so the lab can watch, mute and solo them
+// without touching sfx.js. The game object is mutated in place, so the real
+// updateMusic still drives everything.
+let fired = {}, muted = {}, soloed = null, logLines = [];
+for (const [name, cls, obj] of VOICES)
+{
+    const play = obj.play.bind(obj), note = obj.playNote.bind(obj);
+    obj.play = (vol = 1, rate = 1, j = 1)=>
+    {
+        fired[name] = 1;
+        log(name, Math.round(Math.log2(rate)*12), vol);
+        if (audible(name)) play(vol, rate, j);
+    };
+    obj.playNote = (n = 0, vol = 1)=>
+    {
+        fired[name] = 1;
+        log(name, n, vol);
+        if (audible(name)) note(n, vol);
+    };
+}
+const audible = (n)=> soloed ? soloed == n : !muted[n];
+function log(name, n, vol)
+{
+    logLines.unshift(`<b>${String(beat).padStart(4)}</b>  ${name.slice(4).padEnd(5)}`
+        + ` note ${String(n).padStart(3)}   vol ${(+vol).toFixed(2)}`);
+    if (logLines.length > 200) logLines.pop();
+}
+
+// ---- the clock. updateMusic ticks on frame%8, so stepping frame by 8 makes
+// this page's interval the tempo directly.
+// NOTE `beat` is sfx.js's own global and is deliberately NOT redeclared here
+// - these scripts share one scope, so a `let beat` in this page is a
+// duplicate declaration and the whole file fails to parse. ----
+let timer = 0;
+const barEl = document.getElementById('bar');
+const blocks = [];
+for (let i = 0; i < 48; ++i) { const b = document.createElement('i'); barEl.append(b); blocks.push(b); }
+
+function tick()
+{
+    fired = {};
+    frame += musicTick;
+    updateMusic();
+    const b = blocks[beat % blocks.length];
+    b.className = VOICES.filter(v => fired[v[0]]).map(v => v[1]).join(' ');
+    blocks[(beat+1) % blocks.length].className = '';
+    document.getElementById('beat').textContent = beat;
+    document.getElementById('log').innerHTML = logLines.join('<br>');
+}
+
+const playBtn = document.getElementById('play');
+playBtn.onclick = ()=>
+{
+    if (timer) { clearInterval(timer); timer = 0; playBtn.textContent = '▶ PLAY'; playBtn.classList.remove('on'); }
+    else { timer = setInterval(tick, +tempo.value); playBtn.textContent = '■ STOP'; playBtn.classList.add('on'); }
+};
+tempo.oninput = ()=>
+{
+    tempoV.textContent = tempo.value;
+    if (timer) { clearInterval(timer); timer = setInterval(tick, +tempo.value); }
+};
+vol.oninput = ()=>
+{
+    volV.textContent = (vol.value/100).toFixed(2);
+    audioMasterGain.gain.value = vol.value/100;
+};
+
+// ---- instrument arrays, read out of sfx.js so nothing is duplicated ----
+const P = ['volume','randomness','frequency','attack','sustain','release','shape',
+    'shapeCurve','slide','deltaSlide','pitchJump','pitchJumpTime','repeatTime','noise',
+    'modulation','bitCrush','delay','sustainVolume','decay','tremolo','FILTER'];
+let arrays = {};
+
+async function readSfx()
+{
+    const src = await (await fetch('../sfx.js?' + Date.now())).text();
+    arrays = {};
+    for (const m of src.matchAll(/const\s+(snd_\w+)\s*=\s*(?:MUSIC\s*&&\s*)?new Sfx\((\[[^\]]*\])\)/g))
+        arrays[m[1]] = m[2];
+    buildTable();
+    buildEffects();
+}
+
+function buildTable()
+{
+    const t = document.getElementById('inst');
+    t.innerHTML = '';
+    for (const [name] of VOICES)
+    {
+        const tr = t.insertRow();
+        tr.insertCell().outerHTML = `<td class=n>${name.slice(4)}</td>`;
+        const bc = tr.insertCell(); bc.className = 'b';
+        const mute = document.createElement('button'); mute.textContent = 'mute';
+        mute.onclick = ()=> { muted[name] = !muted[name]; mute.classList.toggle('on', !!muted[name]); };
+        const solo = document.createElement('button'); solo.textContent = 'solo';
+        solo.style.marginLeft = '4px';
+        solo.onclick = ()=>
+        {
+            soloed = soloed == name ? null : name;
+            for (const b of t.querySelectorAll('button')) if (b.textContent == 'solo') b.classList.remove('on');
+            solo.classList.toggle('on', soloed == name);
+        };
+        bc.append(mute, solo);
+        const ic = tr.insertCell();
+        const input = document.createElement('input'); input.type = 'text'; input.value = arrays[name] || '[]';
+        ic.append(input);
+        const vc = tr.insertCell(); vc.className = 'v';
+        const apply = document.createElement('button'); apply.textContent = 'apply';
+        apply.onclick = ()=> applyArray(name, input.value, vc);
+        const test = document.createElement('button'); test.textContent = 'test';
+        test.style.marginLeft = '4px';
+        test.onclick = ()=> VOICES.find(v => v[0] == name)[2].play(1);
+        vc.append(apply, test);
+        input.onkeydown = (e)=> { if (e.key == 'Enter') applyArray(name, input.value, vc); };
+        arrays[name] = input.value;
+        input.oninput = ()=> arrays[name] = input.value;
+    }
+}
+
+// Re-render an instrument in place. Sfx keeps its samples in .s and its pitch
+// jitter in .j, so overwriting those two IS a live instrument swap - the const
+// binding in sfx.js never has to be reassigned.
+function applyArray(name, text, cell)
+{
+    let arr;
+    try { arr = new Function('return ' + text)(); }
+    catch (e) { cell.style.color = '#e8654a'; cell.title = e.message; return; }
+    const obj = VOICES.find(v => v[0] == name)[2];
+    obj.j = arr[1] ?? .05;
+    const a = arr.slice(); a[1] = 0;
+    obj.s = zzfxG(...a);
+    cell.style.color = arr[20] !== undefined ? '#e8c04a' : '#7d8698';
+    cell.title = arr[20] !== undefined
+        ? 'parameter 20 is the FILTER: it works here but is STRIPPED from the release build'
+        : arr.map((v, i) => v === undefined ? '' : P[i] + '=' + v).filter(Boolean).join(', ');
+    obj.play(1);
+}
+
+function buildEffects()
+{
+    const fx = document.getElementById('fx');
+    fx.innerHTML = '';
+    for (const name in arrays)
+    {
+        if (VOICES.some(v => v[0] == name)) continue;
+        const b = document.createElement('button');
+        b.textContent = name.slice(4);
+        b.onclick = ()=> globalThis[name].play(1);
+        fx.append(b);
+    }
+}
+
+document.getElementById('copy').onclick = ()=>
+{
+    const out = VOICES.map(([n]) =>
+        `const ${n.padEnd(9)} = MUSIC && new Sfx(${arrays[n]});`).join('\n');
+    navigator.clipboard.writeText(out);
+    document.getElementById('copy').textContent = 'copied!';
+    setTimeout(()=> document.getElementById('copy').textContent = 'copy arrays', 1200);
+};
+document.getElementById('reload').onclick = readSfx;
+readSfx();
+</script>
+</body>
