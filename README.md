@@ -1,5 +1,9 @@
 # ☀️⛳ Sunshine Golf Classic
 
+# [PLAY ENHANCED VERSION](https://killedbyapixel.github.io/Golf13K/) - [OFFICIAL JS13K PAGE](https://js13kgames.com/games/sunshine-golf-classic)
+
+![Cover Image](cover.png)
+
 **Eighteen holes. Eleven clubs. One rainbow, and it is the one you leave behind you.**
 
 A whole golf course in real 3D, in under 13 kilobytes.
