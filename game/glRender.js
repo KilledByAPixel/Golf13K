@@ -642,8 +642,6 @@ function pushLandingGridGL()
     glEnableFog = 1;
 }
 
-// radians of beacon lean per yard/second of wind (see the beacon below)
-const WIND_LEAN = .1;
 // aim aid: rainbow ring on the terrain at the predicted landing point,
 // z-buffered (hills occlude it), fog-exempt so it stays vivid far downrange.
 // FULL SHOTS ONLY: a putt is read off the dashed line and the cup itself,
