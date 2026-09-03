@@ -1,5 +1,9 @@
 # ☀️⛳ Sunshine Golf Classic
 
+# [PLAY ENHANCED VERSION](https://killedbyapixel.github.io/Golf13K/) - [OFFICIAL JS13K PAGE](https://js13kgames.com/games/sunshine-golf-classic)
+
+![Cover Image](cover.png)
+
 An 18 hole golf course in real 3D, in under 13 kilobytes! Every hole is built from a seed the moment you tee off: the land, the trees, the weather, even the music. The renderer and every pixel of the art fit in there too.
 
 Shoot par or better on the classic to unlock remix mode, and get a brand new course every time you play.
