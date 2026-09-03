@@ -216,7 +216,7 @@ function renderMeter()
     // WHERE THE CUP FALLS on the bar
     if (ballToPin() < predDist)
     {
-        fillRect(t2x(ballToPin()/predDist)-3, by-bh*.5, 6, bh*2, '#8df');
+        fillRect(t2x(ballToPin()/predDist)-3, by-bh*.5, 6, bh*2, '#8ef');
     }
     // the sweet spot, on every club: launchBall snaps err to zero inside
     // |impact| < .02. The .06 that prints GOOD is not drawn - nothing happens there.
