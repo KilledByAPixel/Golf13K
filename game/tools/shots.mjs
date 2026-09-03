@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// RAINBOW GOLF TOUR iteration harness
+// SUNSHINE GOLF CLASSIC iteration harness
 // - serves the repo, loads the dev build headless, fails on console errors
 // - screenshots key game states into game/shots/
 // - optionally runs the autoplay bot for playtest stats
@@ -53,22 +53,20 @@ const shot = async (name)=>
 }
 const sleep = (ms)=> new Promise(r => setTimeout(r, ms));
 const click = ()=> page.mouse.click(640, 400);
-// The title is a MENU now (CLASSIC / REMIX / CONTINUE), so leaving it needs
-// a click ON a button, not anywhere. Closure renames menuRect away in the
+// The title is a MENU (CONTINUE / CLASSIC / REMIX), so leaving it needs a
+// click ON a button, not anywhere. Closure renames menuRect away in the
 // release build, so this repeats its formula rather than querying it:
 // the three sit in a ROW at y = T*.62, each min(W*.31, T*.44) wide and
 // spaced 1.06 of that apart. KEEP IN SYNC with menuRect in game.js.
 const VW = 1280, VH = 720, MW = VW*.31;
 const clickMenu = (i)=> page.mouse.click(VW/2 + (i-1)*MW, VH*.62 + VH*.05);
 // keyboard: LittleJS never registers Playwright's press() (down+up in one
-// task - measured 0/6 vs 6/6). The key must stay down across a frame, and
-// swiftshader frames (or a hole rebuild) can take 100ms+, so hold it for
-// a few frames and let a frame pass after release. Use this for EVERY key.
+// task). A key must stay DOWN across a rendered frame, and a swiftshader
+// frame (or a hole rebuild) can outlast any fixed hold, so hold it until the
+// frame counter moves and let a frame pass after release. Use this for EVERY
+// key.
 const key = async (code)=>
 {
-    // hold across at least one RENDERED frame. LittleJS reads a key that was
-    // down during a frame; swiftshader in the map view can take longer than
-    // any fixed hold, so a 150ms press was simply missed there.
     const f0 = await page.evaluate('frame').catch(()=>0);
     await page.keyboard.down(code);
     for (let t=0; t<3000; t+=100)
@@ -81,10 +79,9 @@ const key = async (code)=>
 };
 // poll the dev-build DBG() hook until the game reaches a state (frame-rate
 // independent - swiftshader runs well below 60fps so fixed sleeps desync).
-// The CAP is wall-clock and must absorb time dilation: at 22fps (the tree
-// count tripled on 2026-08-31) the accumulator clamp runs game time at a
-// THIRD of wall speed, and a drive's flight+settle is ~9 game-seconds -
-// the old 12s cap timed out on a perfectly healthy shot.
+// The CAP is wall-clock and must absorb time dilation: at ~20fps the
+// accumulator clamp runs game time at a THIRD of wall speed, and a drive's
+// flight+settle is ~9 game-seconds.
 const waitState = async (s, ms=30000)=>
 {
     for (let t=0; t<ms; t+=200)
@@ -100,7 +97,7 @@ try
     // title
     await page.goto(BASE, { waitUntil: 'load' });
     // the debug keys this walk presses (C, M, [ ], F) are gated behind
-    // CHEATS() since p285; it persists in localStorage across the navigations
+    // CHEATS(); it persists in localStorage across the navigations
     await page.evaluate('CHEATS(1)');
     await sleep(1500);
     await shot('01-title');
@@ -156,7 +153,7 @@ try
     // swing - meter timing is frame-rate dependent under swiftshader)
     await waitState(2); // armed meter auto-cancels back to aim
     // swing FROM the landing preview: the flight must start from the tee
-    // cam (v0.10 chase-lerped from the preview pose and swung wildly)
+    // cam, not chase-lerp from the preview pose
     await page.evaluate('PREVIEW(1)');
     await sleep(300);
     await page.evaluate('SWING()');
@@ -220,9 +217,9 @@ try
     await click();
     await sleep(400);
 
-    // from a bunker the landing ring once stuck to the ball: groundAt sits
-    // .5yd below heightAt inside the scoop, and the flight prediction ended
-    // against heightAt, so the shot "landed" before it started
+    // from a bunker the landing ring must fly: groundAt sits .5yd below
+    // heightAt inside the scoop, so a prediction that ends against heightAt
+    // would "land" before it started
     await page.evaluate('(()=>{ const b = hole.bunkers[0]; ball.x = b.x; ball.z = b.z;'
         + ' ball.y = groundAt(b.x, b.z).h; clubI = 8; enterAim(); })()');
     await sleep(500);
@@ -338,13 +335,10 @@ try
     await waitState(1); // next hole's intro
     await page.evaluate('JUMP(18); HOLEOUT()');
     await waitCard();
-    await shot('23-results-card'); // hole 18's card IS the results card now
+    await shot('23-results-card'); // hole 18's card IS the results card
     // THE LAST CARD HOLDS A SECOND LONGER before it will take a click. It is
     // the round's result and there is no screen behind it, so a click still in
-    // flight from the hole-out banner must not be able to throw it away. This
-    // check used to dismiss the card at stateTime 85 and assert the title came
-    // back; the hold landed and the click was swallowed, so the walk failed on
-    // working code (Frank caught it, 2026-09-02). Now it pins the hold itself.
+    // flight from the hole-out banner must not be able to throw it away.
     await click();
     await sleep(150);
     if (await page.evaluate('DBG().state') != 5)
@@ -352,7 +346,7 @@ try
     await waitCard(145);
     await click();
     await sleep(400);
-    // ...and its click ends the round: no separate results state since p237
+    // ...and its click ends the round: there is no separate results state
     if (await page.evaluate('DBG().state') != 0) errors.push('HARNESS: hole-out on 18 should return to the TITLE (0)');
 
     // mobile: touch device, portrait phone viewport, DPR 2 - taps must drive
@@ -432,23 +426,23 @@ try
         console.log('artifact.html missing - run "npm run artifact" first (artifact check skipped)');
 
     // release build (the real zip contents): Closure ADVANCED silently
-    // renames any DOM property missing from its externs - roundRect once
-    // became ctx.ja and the meter threw every frame in release only. No
-    // DBG hook here, so drive it blind: title -> intro -> aim (meter drawn)
+    // renames any DOM property missing from its externs (roundRect is the
+    // class of bug: it becomes ctx.ja and the meter throws every frame, in
+    // release only). No DBG hook here, so drive it blind: title -> intro ->
+    // aim (meter drawn)
     const release = join(__dirname, '../build/index.html');
     if (fs.existsSync(release))
     {
         await page.goto(BASE + 'game/build/index.html', { waitUntil: 'load' });
         await sleep(2500);
-        await clickMenu(1); // title -> CLASSIC (the CENTRE button since p146)
+        await clickMenu(1); // title -> CLASSIC (the centre button)
         await sleep(1200);
         await click(); // intro -> aim (meter + HUD draw here)
         await sleep(1500);
         await shot('25-release-aim');
-        // ...and a full swing. Until now the release build was only ever
-        // driven as far as the aim view, which is exactly how the roundRect
-        // crash hid: it needed a state nobody smoke-tested. This covers the
-        // meter's live phases, the flight camera, the trail and the banner.
+        // ...and a full swing: a release-only rename only shows up in a state
+        // something actually runs, so this covers the meter's live phases,
+        // the flight camera, the trail and the banner.
         await key('Space'); // arm the meter
         await sleep(700);
         await key('Space'); // set power

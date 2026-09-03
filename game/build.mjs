@@ -17,9 +17,9 @@ import ectLocation from 'ect-bin';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// No PROGRAM_TITLE: the shipped page has no <title> tag at all (-22 bytes).
-// To put one back, add `buffer += '<title>SUNSHINE GOLF CLASSIC</title>';`
-// to htmlBuildStep - it costs 22 plus a byte or so per character.
+// No PROGRAM_TITLE: the shipped page has no <title> tag (-22 bytes). To put
+// one back, add `buffer += '<title>SUNSHINE GOLF CLASSIC</title>';` to
+// htmlBuildStep - it costs 22 plus a byte or so per character.
 const PROGRAM_NAME = 'game';
 const BUILD_FOLDER = 'build';
 const SIZE_LIMIT = 13312; // JS13K limit in bytes
@@ -29,7 +29,7 @@ const SIZE_LIMIT = 13312; // JS13K limit in bytes
 // delete the whole subsystem. See "Saving space" in README.md for measurements.
 const FEATURES =
 {
-    webgl:   false, // all rendering is software-projected canvas 2D
+    webgl:   false, // the engine's WebGL renderer is replaced by the game's glRender.js
     touch:   true,  // touch input and the on screen touch gamepad
     gamepad: false, // gamepad input
     sound:   true,  // all audio
@@ -49,6 +49,9 @@ const FEATURE_FLAGS =
     pixelated: ['canvasPixelated', 'setCanvasPixelated'],
 };
 
+// Engine methods Closure keeps because their NAME is also used on another
+// type (Vector2/Vector3/Color share names), cut from the source before it
+// minifies. Each fails loudly if the class or method is not found.
 const STRIP_METHODS =
 {
     Vector2: ['set', 'add', 'subtract', 'scale', 'length', 'normalize', 'cross',
@@ -70,9 +73,6 @@ const STRIP_CODE =
     ['plugin render hooks', /^ *pluginRenderList\.forEach\(f=>f\(\)\);\n/mg, ''],
     ['fixed canvas size', /^ *if \(canvasFixedSize\.x\)\n *\{[\s\S]*?\n {8}\}\n *else\n/m, ''],
     ['callback defaults', /^ *game\w+ +\|\|= \(\)=>\{\};\n/mg, ''],
-    // The comma before the comment is part of the match: these are the tail
-    // of one long `let` declaration list, so cutting from the comment alone
-    // leaves `length,;` behind and Closure rejects the file.
 ];
 
 // Set true to keep intermediate .closure.js / .uglify.js files for debugging
@@ -82,11 +82,10 @@ const USE_ROADROLLER = true;
 // Roadroller's parameters, PINNED. Left to itself roadroller runs
 // --optimize 1, a RANDOMISED ~30-attempt parameter search, so the same
 // source packs to a different size on every build - a spread of ~15 bytes,
-// more than most single changes are worth, which made A/B measurement
-// unreliable. These came from a --optimize 2 search on 2026-08-28 (the 08-24 set was 12 bytes worse after that day's -771). Set
-// ROADROLLER_RETUNE to search again (about a minute) and paste the
-// parameters it prints back here: worth doing before submission and after
-// any large change.
+// more than most single changes are worth, which makes A/B measurement
+// unreliable. Set ROADROLLER_RETUNE to search again (about a minute) and
+// paste the parameters it prints back here: worth doing before submission
+// and after any large change.
 const ROADROLLER_ARGS = '-Zab31 -Zlr1064 -Zmc4 -Zmd10 -Zpr13 -S0,1,2,3,6,7,13,21,25,42,226,385';
 const ROADROLLER_RETUNE = false;
 
@@ -167,12 +166,11 @@ console.log(`${SIZE_LIMIT - size} bytes remaining`);
 // - each build step is a callback that accepts a single filename
 function Build(outputFile, files=[], buildSteps=[])
 {
-    // copy files into a buffer (CR stripped: git checks out CRLF on
-    // Windows and LF elsewhere, and that alone moves the packed size).
-    // The 'use strict' directives go too: Closure would carry one to the
-    // top of the release, and this code has nothing that behaves
-    // differently in sloppy mode (classes are strict regardless) - measured
-    // 17 bytes of zip for the directive alone.
+    // copy files into a buffer. CR is stripped (git checks out CRLF on
+    // Windows and LF elsewhere, and that alone moves the packed size), and
+    // so are the 'use strict' directives: Closure would carry one to the top
+    // of the release (17 bytes of zip) and nothing here behaves differently
+    // in sloppy mode (classes are strict regardless).
     let buffer = '';
     for (const file of files)
         buffer += fs.readFileSync(file, 'utf8').split(String.fromCharCode(13)).join('')
@@ -191,12 +189,11 @@ function Build(outputFile, files=[], buildSteps=[])
         buildStep(outputFile);
 }
 
-// Rewrite disabled feature flags to compile time constants
-// - the engine declares them as mutable 'let' so setters can change them
-// - Closure cannot fold a mutable binding, so it keeps both branches and the
-//   whole subsystem behind them survives even in a game that never uses it
-// - turning the flag into 'const false' and emptying its setter lets Closure
-//   prove the branch is dead and delete it
+// Rewrite disabled feature flags to compile time constants. The engine
+// declares them as mutable 'let' so setters can change them, and Closure
+// cannot fold a mutable binding, so the whole subsystem behind the flag
+// survives; 'const false' plus an emptied setter lets it prove the branch
+// dead and delete it.
 function applyFeatureFlags(buffer)
 {
     for (const feature in FEATURE_FLAGS)
@@ -308,24 +305,19 @@ function htmlBuildStep(filename)
     //   no <head>, </head>, </body>                          -8
     // <head> and </body> really are optional - the parser opens the head
     // implicitly, the metas land in it either way, and it closes the body at
-    // EOF. <body> ITSELF IS NOT: see the note below, dropping it broke the
-    // release outright. (An earlier measurement had dropping <head> ALONE at
-    // +3, which is why it was rejected before; alongside the others it goes
-    // the other way. These cuts are not additive, so measure the combination.)
-    // NO DOCTYPE either, which puts the page in QUIRKS MODE - and that is the
-    // SAFE direction here, not the risky one: the dev index.html has never
-    // had a doctype, so quirks is the mode every playtest has ever run in and
-    // the release was the odd one out. Dropping it makes the two MATCH.
-    // Nothing in the layout cares anyway: body at margin 0, two absolutely
-    // positioned canvases centred with a transform, no percentage-height
-    // chains and no tables.
+    // EOF. <body> ITSELF IS NOT (see below). These cuts are not additive, so
+    // measure the combination.
+    // NO DOCTYPE either, which puts the page in QUIRKS MODE - the SAFE
+    // direction here: the dev index.html has no doctype, so quirks is the
+    // mode every playtest runs in, and the two MATCH. Nothing in the layout
+    // cares anyway: body at margin 0, two absolutely positioned canvases
+    // centred with a transform, no percentage-height chains and no tables.
     // CHARSET only if the payload actually needs one. The shipped file is
     // pure ASCII - roadroller escapes everything it packs, and the emoji live
     // inside that payload as JS code points rebuilt at runtime - so every
-    // legacy decoding reads it identically and the declaration says nothing.
-    // It is emitted the moment a high byte appears, because one escaping past
-    // roadroller after a later change would corrupt the whole payload
-    // silently, and that is not a failure anyone would spot by looking.
+    // legacy decoding reads it identically. It is emitted the moment a high
+    // byte appears, because one escaping past roadroller would corrupt the
+    // whole payload silently, and nobody would spot that by looking.
     const js = fs.readFileSync(filename);
     let buffer = js.some(c => c > 127) ? '<meta charset=utf-8>' : '';
     // Mobile: real CSS pixels. Without this a phone lays the page out in a
@@ -333,24 +325,21 @@ function htmlBuildStep(filename)
     // sized for a desktop and shrunk - HUD and meter unreadable. It cannot go.
     // initial-scale=1 only sets the OPENING zoom, to a level browsers already
     // default to when width=device-width is present, so it looks like 15 free
-    // bytes (MEASURED: 13,325 without, 13,340 with). It is kept anyway: the
-    // level it restores is the one old iOS could lose on an orientation
-    // change, and a phone that comes back from landscape at the wrong zoom is
-    // a bug nothing here can see. Frank's call, and the right one - this is
-    // the cheapest insurance in the file against a device we cannot test.
+    // bytes. It is kept anyway: that level is the one old iOS could lose on
+    // an orientation change, and a phone that comes back from landscape at
+    // the wrong zoom is a bug nothing here can see - the cheapest insurance
+    // in the file against a device we cannot test.
     // The value stays QUOTED. Unquoted, the "=" inside the value is a spec
-    // parse error - the tokenizer treats it as an ordinary character, and it
-    // was MEASURED parsing correctly in Chrome - but two bytes to be right by
-    // the spec everywhere beats being right by leniency, on the one attribute
-    // whose failure only shows on a device we cannot test. Frank's call.
+    // parse error that Chrome happens to forgive, and two bytes to be right
+    // by the spec everywhere beats being right by leniency, on the one
+    // attribute whose failure only shows on a device we cannot test.
     buffer += '<meta name=viewport content="width=device-width,initial-scale=1">';
-    // <body> is REQUIRED and is not optional the way <head> is. Without it
-    // the parser is still in "in head" mode when it reaches the <script>,
-    // so the script runs with document.body === null - and engineInit takes
-    // `rootElement = document.body` as a DEFAULT ARGUMENT, evaluated right
-    // then, so it throws on the first line that touches it. The OPENING tag
-    // is the whole fix; </body> is genuinely optional (the parser closes it
-    // at EOF), so only one tag goes back in.
+    // <body> is REQUIRED, unlike <head>. Without it the parser is still in
+    // "in head" mode when it reaches the <script>, so the script runs with
+    // document.body === null - and engineInit takes `rootElement =
+    // document.body` as a DEFAULT ARGUMENT, evaluated right then, so it
+    // throws. The OPENING tag is the whole fix; </body> is genuinely optional
+    // (the parser closes it at EOF).
     buffer += '<body>';
     buffer += '<script>';
     buffer += js;

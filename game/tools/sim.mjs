@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 // Headless golf sim: runs bot rounds directly in node (no browser) for
 // instant physics/difficulty tuning. Loads engineMath + course + golfSim.
-// usage: node tools/sim.mjs [seed] [--remix] [--verbose]
+// The bot below is a COPY of debugGame.js's botSwing, not a load of it: a
+// change to one must be made in the other, or this gate stops measuring the
+// player you watch in the browser. sfxBounce / snd_bounce are stubbed because
+// sfx.js is never loaded; a NEW sound called from golfSim breaks this and
+// unit.mjs until it is stubbed in each.
+// usage: node tools/sim.mjs [seed] [--remix] [--verbose] [--fixed] [--trees=K]
 
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -14,8 +19,7 @@ const seedArg = +(process.argv[2]) || 1113;
 const remix = process.argv.includes('--remix');
 const verbose = process.argv.includes('--verbose');
 // --trees=K scales the periphery forest, matching the ?trees=K debug param.
-// Trees 75-180yd off the path are k=0 and COLLIDE, so forest density is a
-// difficulty knob, not only an art one - this is how to measure that.
+// Trees 75-180yd off the path COLLIDE, so forest density is a difficulty knob.
 const treesArg = +(process.argv.find(a => a.startsWith('--trees='))||'').split('=')[1];
 // --fixed seeds Math.random so the bot plays identical shots every run:
 // the ONLY way to tell a real difficulty change from the bot's variance

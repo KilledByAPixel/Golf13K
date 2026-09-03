@@ -15,12 +15,9 @@ eq(trail[0].t, .5, 'trailPrune keeps the oldest sample still within TRAIL_LIFE')
 trailPrune(3);
 eq(trail.length, 0, 'trailPrune empties a stale trail');
 
-// ---- GL: packed lit colors and the lathe primitive (Phase 3, Task 1) ----
-// White lit by a +z normal, checked against the FORMULA rather than a baked
-// constant: the old version hard-coded the packed word, so every time Frank
-// nudged glAmbient or glLightColor - which are his to tune - this failed and
-// said nothing useful. It now re-derives the expectation from the live
-// constants, so it still catches a broken packColor and ignores a retune.
+// ---- GL: packed lit colors and the lathe primitive ----
+// White lit by a +z normal, derived from the live lighting constants so a
+// retune passes and a broken packColor still fails
 {
     const L = Math.max(0, glLightDir.z);
     const ch = (i)=> Math.min(255, (glAmbient[i] + glLightColor[i]*L)*255)|0;
@@ -50,18 +47,16 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
 eq(Math.abs(heightAt(0, 120) - heightRaw(0, 120)) < 1e-9, true, 'no periphery lift on the fairway');
 eq(heightAt(400, 150) - heightRaw(400, 150) > 15, true, 'ground rises 400yd off the path');
 eq(heightAt(150, 150) - heightRaw(150, 150) < 2, true, 'the rise starts gently past 110yd');
-// ---- non-uniform grid: 4yd cells inside, growing steps outside, sorted ----
+// ---- non-uniform grid: MESH_CELL cells inside, growing steps outside, sorted ----
 const ax = gridAxis(0, 40);
 eq(ax[12], 0, '12 coarse steps precede the fine range');
 eq(ax[13] - ax[12], MESH_CELL, 'fine cells are MESH_CELL wide');
 eq(ax.every((v, i)=> !i || v > ax[i-1]), true, 'axis is strictly increasing');
 eq(ax[ax.length-1] > 500, true, 'the axis reaches past 500yd beyond the corridor');
 
-// ---- REMIX is the classic course RE-DEALT: the same 18 hand-tuned rows,
-// shuffled by the course seed, which also re-rolls every hole's land. The
-// shuffle must be a true permutation (nothing lost, nothing doubled) and
-// DETERMINISTIC from the seed - the save stores that seed, so a continued
-// remix round has to deal the same order every time. ----
+// ---- REMIX is the classic course RE-DEALT: the same 18 rows shuffled by
+// the course seed. The shuffle must be a true permutation and DETERMINISTIC
+// from the seed, since a continued remix round must deal the same order ----
 for (const seed of [1, 7, 99, 4242, 31337, 999983])
 {
     const rows = genCourse(seed, 1);
@@ -97,16 +92,14 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
 eq(hole.trees.filter(t => t.k == 1).length, 0, 'forestMul 0 disables the forest');
 forestMul = 1;
 
-// ---- the ball never goes under the height field (it used to tunnel into
-// hills while climbing and drop into the water beneath) ----
+// ---- the ball never goes under the height field: a climbing ball reflects
+// off the slope instead of tunnelling into the hill ----
 genHole(1113, 12, CLASSIC_HOLES[12]); // hilly back-nine hole
 let under = 0;
 for (let i=0; i<24; ++i)
 {
     ball.x = hole.path[0].x; ball.z = hole.path[0].z; ball.y = groundAt(ball.x, ball.z).h;
-    // i % CLUB_PUTTER = every club that flies, whatever the bag holds.
-    // Was i%9, which meant "every club" until the 13 iron pushed the SW to 9
-    // and quietly dropped it from the sweep.
+    // i % CLUB_PUTTER = every club that flies, whatever the bag holds
     launchBall(i % CLUB_PUTTER, 1, 0, 0, i*.26, 1); // headings all round the clock
     for (let n=0; n<900 && !ballEvent; ++n)
     {
@@ -123,13 +116,9 @@ const pFull = predictLanding(0, 0, 0, 1), pHalf = predictLanding(0, 0, 0, 1, .5)
 const cFull = Math.hypot(pFull.x, pFull.z), cHalf = Math.hypot(pHalf.x, pHalf.z);
 eq(cHalf > cFull*.35 && cHalf < cFull*.65, true, 'powerFrac .5 lands near half the full carry');
 
-// ---- the aim ring must not collapse at the player's feet when they stand
-// below a slope and aim up it. predictLanding used to end the flight on ANY
-// ground contact, but ballUpdate only LANDS a descending ball - clipping a
-// rise on the way up reflects off the slope and the shot carries over it.
-// Frank hit one of these anyway and it sailed over the hill, which is how it
-// was found. Measured before the fix, on a .5 gradient: the ring predicted
-// 0.6yd against a real 307yd touchdown. ----
+// ---- the aim ring must not collapse at the player's feet when they aim up
+// a slope: ballUpdate only LANDS a descending ball, and clipping a rise on
+// the way up reflects off it, so predictLanding must do the same ----
 {
     genHole(1113, 0, CLASSIC_HOLES[0]);
     const realH = heightAt, realG = groundAt;
@@ -148,11 +137,8 @@ eq(cHalf > cFull*.35 && cHalf < cFull*.65, true, 'powerFrac .5 lands near half t
 }
 
 // ---- THE PIN is a thin post the ball can clatter off - but only a ball
-// that was NOT going in. A chip-in or an ace must never be knocked away by
-// the stick, so the cup is settled first and the pin skipped when it holes.
-// cupHit does the geometry: it tests the step's whole PATH, which it must,
-// because at flight speed a step is most of a yard and a position-only test
-// would tunnel through a .1yd post nearly every time. ----
+// that was NOT going in: the cup is settled first. cupHit sweeps the step's
+// whole PATH, since at flight speed a step is most of a yard ----
 {
     genHole(1113, 0, CLASSIC_HOLES[0]);
     const realH = heightAt, realG = groundAt;
@@ -176,13 +162,9 @@ eq(cHalf > cFull*.35 && cHalf < cFull*.65, true, 'powerFrac .5 lands near half t
     };
     eq(clip(0) < 0, true, 'a ball flown into the pin is kicked back off it');
     eq(clip(4) > 24, true, 'and one passing 4yd wide of it is untouched');
-    // ONE strike per shot, latched in shotBegin. A step at flight speed is
-    // most of a yard, so the ball tunnels clean through the .2yd post, is
-    // reflected onto the far side, and crosses back into it next step - a
-    // genuine approach every time, so the dot-product guard cannot stop it.
-    // Each pass took another 40% of the horizontal speed until the ball just
-    // dropped down the stick; Frank heard the bounce fire four times on one
-    // throw. Counted here as sign flips in vx, which needs no sound hook.
+    // ONE strike per shot, latched in shotBegin: the ball tunnels through the
+    // post, reflects and crosses back next step, so the dot-product guard
+    // alone cannot stop repeat hits. Counted as sign flips in vx.
     const strikes = (sp)=>
     {
         ball.x = hole.pin.x - 3; ball.z = hole.pin.z; ball.y = 1;
@@ -224,9 +206,8 @@ meterStart();
 let mev = '';
 for (let i=0; i<300 && !mev; ++i) mev = meterUpdate(0, 0);
 eq(mev, MET_CANCEL, 'a full rise and fall without a click cancels the swing');
-// A PUTT TAKES THE SAME THREE CLICKS (2026-09-01). It used to swing on the
-// power click alone; now the second click aims it, so meterUpdate has no
-// putt case left at all and this pins that it did not creep back in.
+// A PUTT TAKES THE SAME THREE CLICKS: meterUpdate has no putt case, and this
+// pins that one does not creep back in.
 meterStart();
 for (let i=0; i<30; ++i) meterUpdate(0);
 eq(meterUpdate(1), MET_POWER, 'a putt takes the power click, not the swing');
@@ -235,14 +216,12 @@ for (let i=0; i<300 && meterPhase == 2; ++i) meterUpdate(0);
 eq(meterImpact.toFixed(3), (-METER_OVER).toFixed(3), 'a putt sweep run out is maximally late');
 meterPhase = 0;
 
-// ---- meshHeightAt: props sit on the DRAWN terrain (the coarse periphery
-// cells cut chords through the analytic hills - far trees floated) ----
+// ---- meshHeightAt: props sit on the DRAWN terrain, since the coarse
+// periphery cells cut chords through the analytic hills and a prop would float ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 buildGrid();
-// pushTerrain fills meshH off its own per-vertex groundAt (it shares that
-// call with groundColor), and it needs a GL context we do not have here - so
-// fill the grid the same way it does. What is under test is meshHeightAt's
-// interpolation of the grid, not who wrote it.
+// pushTerrain fills meshH from its per-vertex groundAt and needs a GL context,
+// so fill the grid the same way; under test is meshHeightAt's interpolation
 meshH = meshZs.map(z => meshXs.map(x => groundAt(x, z).h));
 eq(meshHeightAt(meshXs[3], meshZs[5]), meshH[5][3], 'a grid vertex returns its own height');
 const cx = (meshXs[3]+meshXs[4])/2, cz = (meshZs[5]+meshZs[6])/2;
@@ -271,18 +250,14 @@ const prop = (z, s, k)=> ({x: 0, z, s, k, y: groundAt(0, z).h + trunkH({s, k})})
 eq(shot([prop(30, 2.5, 0)]) < 60, true, 'a tree in the flight path stops the ball near it');
 eq(treeHit, 1, 'the hit is flagged for the HUD');
 
-// A BUSH IS A LOW TREE: same sphere, same code path, just a shorter trunk.
-// It must sit low enough that a driver clears it and high enough to matter
-// near the ground - that is the whole gameplay difference between the two.
+// A BUSH IS A LOW TREE: same sphere, same code path, shorter trunk - low
+// enough that a driver clears it, high enough to matter near the ground.
 eq(trunkH({s: 2, k: 2}) < trunkH({s: 2, k: 0}), true, 'a bush canopy sits below a tree canopy');
 eq(shot([prop(30, 2, 2)]) > 200, true, 'a driver flies clean over a bush 30yd out');
 
-// ---- the TRUNK sweeps the step path like the pin post. At 60yd/s a step
-// is a whole yard, and the old position-only test let a liner pass clean
-// through a half-yard trunk whenever no sample landed inside it - the
-// bulletproof-paper bug. This flight is tuned so its samples STRADDLE the
-// trunk (z 10, 11 against a trunk at 10.5): position-testing misses by
-// .5yd on both sides, sweeping cannot miss. ----
+// ---- the TRUNK sweeps the step path like the pin post: at 60yd/s a step
+// is a whole yard, so a position-only test lets a liner through. These
+// samples STRADDLE the trunk (z 10, 11 against 10.5), so only a sweep hits ----
 {
     const realH = heightAt, realG = groundAt, realNear = hole.near, realWind = hole.wind;
     heightAt = ()=> 0; groundAt = ()=> ({h: 0, s: SURF_FAIRWAY});
@@ -320,7 +295,7 @@ eq(ballEvent, EV_STOPPED, 'on the flat it comes to rest');
 heightAt = realHeight;
 
 // ---- the landing prediction shares flyStep: predicting a flight into a
-// tree must NOT flag a hit (it played the tree sound 60x a second in aim) ----
+// tree must NOT flag a hit (or the tree sound fires 60x a second in aim) ----
 hole.near = [{x: 0, z: 30, s: 2.5, k: 0, y: groundAt(0, 30).h}];
 ball.x = ball.z = 0; ball.y = groundAt(0, 0).h; treeHit = 0;
 const pTree = predictLanding(0, 0, 0, 1);
@@ -328,53 +303,21 @@ eq(treeHit, 0, 'predicting a flight into a tree does not flag a hit');
 eq(Math.hypot(pTree.x, pTree.z) > 100, true, 'and it flies straight past: the ring ignores trees, so it cannot jump');
 
 
-// ---- the DRAW ORDER is pinned. genHole spends its seeded randoms in a
-// fixed sequence, and the wind's two draws sit BEFORE the scenery precisely
-// so that scenery edits cannot move what a hole plays like. If the number or
-// order of draws ever changes, every hole on the course silently re-rolls -
-// which is what these fingerprints exist to catch.
-//
-// The rows are LITERALS here, not CLASSIC_HOLES[n], and that matters: the
-// hole table is design data Frank tunes (hole 1's lenScale went .85 -> .90
-// on 2026-08-28 to make it feel like a par 4). Reading the live table made
-// every such tweak fail this test, which trains you to re-baseline on
-// reflex - and re-baselining on reflex is exactly how a real draw-order
-// change would slip through. Against a fixed row, only genHole moving can
-// break it, so a failure here is always worth reading.
-//
-// (These two rows were CLASSIC_HOLES 1 and 13 when the fingerprints were
-// captured on 2026-08-23. They no longer need to match the table.)
-//
-// RE-PINNED 2026-08-29 when the par-4 base length went 370 -> 410 and par-5
-// 505 -> 620. That is a deliberate geometry change, so these had to move -
-// and HOW they moved is the evidence it was clean: the x coordinates are
-// byte-identical (21.100 and 54.102) and only z grew. Lengthening a hole
-// pushes props downrange and nowhere else, and an unshifted x means the R
-// stream is still spending its draws in the same order. Had x moved too,
-// the length change would have re-rolled the course and that WOULD have
-// been worth stopping for.
-//
-// RE-PINNED AGAIN 2026-08-30 for two tuning tweaks in 78fbb6e/f686394: the
-// tree scatter's near end went -10 -> -9 (moves tree 5's z, x untouched)
-// and a dogleg's bend range .45-.62 -> .45-.6. Both are deliberate.
-//
-// RE-PINNED AGAIN 2026-08-31 for Frank's course overhaul (ddcab41): the
-// flower hue now spends an R draw, the wind left the R stream entirely
-// (it is pure rand() now - no throwaway draws to protect any more), and
-// the tree scatters changed their draw pattern. x moved as well as z,
-// which is the signature of a full deliberate re-roll - Frank tuned the
-// re-rolled course by playing it, so these values are the new baseline. ----
+// ---- the DRAW ORDER is pinned: genHole spends its seeded randoms in a
+// fixed sequence, and a change in their number or order silently re-rolls
+// every hole. The rows are LITERALS, not CLASSIC_HOLES[n], so tuning the
+// hole table cannot fail this and only genHole moving can - a failure here
+// is always worth reading. On a deliberate geometry change re-pin, and check
+// HOW the values moved: lengthening a hole pushes z only; x moving too means
+// the R stream changed the order of its draws. ----
 genHole(1113, 0, [4, .85, 34, 0, 1, 0, .5, .3]);
 eq(hole.bunkers[0].x.toFixed(3) + ',' + hole.bunkers[0].z.toFixed(3), '5.391,324.790', 'the draw order still puts bunker 0 where it always was');
 eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '-45.463,129.655', 'and tree 5 where it always was');
 genHole(1113, 12, [4, 1.05, 22, 1, 3, .3, 1.2, 1]);
 eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '50.009,322.853', 'a dogleg hole with water and hills too');
 
-// pathPointAt itself, because the fingerprints above did NOT catch it
-// breaking: a backward rewrite made every call return from the final path
-// segment, and trees[5] on the dogleg hole landed in that segment either
-// way. Its neighbours moved by up to 232yd. A prop fingerprint is a sample,
-// not a contract - so pin the contract.
+// pathPointAt itself: a prop fingerprint is a sample, not a contract (a
+// wrong segment can still leave trees[5] where it was), so pin the contract
 genHole(1113, 12, [4, 1.05, 22, 1, 3, .3, 1.2, 1]);
 const P0 = hole.path[0], P1 = hole.path[1], mid = pathPointAt(P1.cum/2);
 eq(hole.path.length, 3, 'the dogleg has two segments to get wrong');
@@ -383,24 +326,20 @@ eq(Math.hypot(mid.x - P1.x/2, mid.z - P1.z/2) < 1e-9, true, 'a point in the FIRS
 eq(pathPointAt(hole.len).z.toFixed(3), hole.green.z.toFixed(3), 'd = len is the green');
 eq(pathPointAt(-50).z, P0.z, 'behind the tee clamps to the tee');
 eq(pathPointAt(hole.len*2).z.toFixed(3), hole.green.z.toFixed(3), 'past the green clamps to the green');
-// ---- wind: calm holes and windy holes, within the HUD's range. Rolled per
-// PLAY from Math.random (seeded in unit.mjs), not from the hole's seed ----
-// NEVER ZERO: the arrow always points somewhere, so a reading of 0 reads as
-// a bug rather than as calm. And the round must actually vary - a whole
-// round of light air is what made wind irrelevant before.
+// ---- wind: rolled per PLAY from Math.random (seeded in unit.mjs), never
+// zero (an arrow pointing nowhere reads as a bug), with a real spread ----
 let lo = 99, hi = 0;
 for (let h=0; h<18; ++h)
 {
     genHole(1113, h, CLASSIC_HOLES[h]);
-    eq(hole.wind.s >= 1 && hole.wind.s <= 21, true, 'hole ' + (h+1) + ' wind is within 1..21');
+    eq(hole.wind.s >= 1 && hole.wind.s <= 8, true, 'hole ' + (h+1) + ' wind is within 1..8'); // 1 + MAXWIND (course.js)
     lo = Math.min(lo, hole.wind.s); hi = Math.max(hi, hole.wind.s);
 }
 eq(hi - lo > 4, true, 'a round carries a real spread of wind, not one flat value');
 eq(hi > 6, true, 'and at least one hole is genuinely windy');
 
-// ---- every classic hole generates finite terrain and features (hole 13
-// lost its hills column to a sed in the palette change and went NaN; the
-// ball-under-terrain case above passed vacuously because NaN compares false) ----
+// ---- every classic hole generates finite terrain and features: a NaN hole
+// passes every "never happens" case above vacuously, since NaN compares false ----
 for (let h=0; h<18; ++h)
 {
     genHole(1113, h, CLASSIC_HOLES[h]);
@@ -409,14 +348,9 @@ for (let h=0; h<18; ++h)
     eq(ok, true, 'hole ' + (h+1) + ' has finite terrain and bunkers');
 }
 
-// ---- WIND BITES, AND THE PREVIEW IS BLIND TO IT. Those are two halves of
-// one design decision, and this pins both: the wind has to move the real
-// ball by yards, and the aim preview must NOT follow it there, because
-// reading the wind is the player's job (Frank, 2026-08-30: "I'd rather the
-// player would have to"). Before 2026-09-01 this case tested the preview
-// FOR drift, since predictLanding then fed only the debug arc; now it is
-// what draws the ring and the shot arc, so it flies still air on purpose
-// and the pair below is what stops either half drifting back. ----
+// ---- WIND BITES, AND THE PREVIEW IS BLIND TO IT: the wind must move the
+// real ball by yards, and the aim preview (which draws the ring and the arc)
+// must NOT follow it, because reading the wind is the player's job ----
 genHole(1113, 15, CLASSIC_HOLES[15]);           // hole 16: island green
 // Wind is rolled per PLAY, so this case pins its own rather than hoping the
 // hole rolls windy.
@@ -451,8 +385,7 @@ eq(Math.hypot(windyPred.x-calmPred.x, windyPred.z-calmPred.z) < 1e-9, true,
     'and the aim preview does not follow it - still air, always');
 
 // ---- launchPutt takes YARDS, so the meter is linear in distance: half a
-// meter rolls half as far. It used to take a speed fraction, and roll goes
-// as v^2, so a half-power putt only reached a quarter of the target ----
+// meter rolls half as far (roll goes as v^2, so a speed fraction would not) ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 const puttRoll = (surf, dist)=>
 {
@@ -470,14 +403,9 @@ const puttRoll = (surf, dist)=>
 const full = puttRoll(SURF_GREEN, 40), half = puttRoll(SURF_GREEN, 20);
 eq(Math.abs(full - 40) < 3, true, 'a putt asked for 40yd rolls about 40yd');
 eq(Math.abs(half - 20) < 2, true, 'and half the distance rolls half as far');
-// OFF the green a putt is measured against the GREEN's friction anyway, so
-// it falls SHORT - the lie eats it, and the player adds power to compensate.
-// This used to be measured against the LIE, which made the asked distance a
-// lie the moment the ball rolled onto the green: it was launched hard enough
-// to cover 8yd of rough, then crossed onto a surface with 4.7x less friction
-// and kept going. Frank's telemetry, asking 8yd from rough: 15, 17 and 24yd.
-// The invariant that matters is the last one - a putt must NEVER outrun what
-// the meter promised.
+// OFF the green a putt is measured against the GREEN's friction, so it falls
+// SHORT and the player adds power; measured against the LIE it would cross
+// onto the green and keep going. A putt must NEVER outrun the meter's promise.
 const fw = puttRoll(SURF_FAIRWAY, 20), rg = puttRoll(SURF_ROUGH, 20);
 eq(fw < 19 && fw > 5, true, 'a fairway putt falls short of the asked distance');
 eq(rg < fw, true, 'and one from the rough falls shorter still');
@@ -485,22 +413,13 @@ eq(rg > .5, true, 'but a rough putt still moves');
 for (const surf of [SURF_GREEN, SURF_FAIRWAY, SURF_ROUGH, SURF_BUNKER])
     eq(puttRoll(surf, 20) < 21, true, 'a putt never outruns its asked distance on surface ' + surf);
 
-// ---- PUTTING IS THE SAME SYSTEM AS EVERY OTHER CLUB (2026-09-01). It
-// shares predictLanding, so it shares the ring, the chip yardage, the target
-// cam and the meter scale; what makes it a putt is only that predictLanding
-// ROLLS it instead of flying it. These pin the parts the rest of the game
-// now leans on. ----
+// ---- PUTTING IS THE SAME SYSTEM AS EVERY OTHER CLUB: it shares
+// predictLanding (ring, chip yardage, target cam, meter scale), which only
+// ROLLS it instead of flying it. These pin what the rest of the game leans on ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
-// ON A FLAT SYNTHETIC GREEN, not hole 1's real one. These pin the PUTT
-// CONTRACT - that the bar's top is a target in yards and the roll delivers it
-// - so the terrain under the ball must not be part of the measurement.
-// They used to run on the real hole 1 and broke the moment Frank gave it a
-// dogleg (706cb65): the pin moved 30yd across, which put a BUNKER directly
-// behind the green, so "10yd short of the pin" was sand and the ball rolled
-// 2.6yd of an asked 10. Correct physics, invalid assumption. Worse, "half the
-// bar rolls half as far" had gone VACUOUS - both rolls were near zero, so the
-// difference was under the 2yd tolerance for the wrong reason.
-// The two blocks below already stub for exactly this, and say why.
+// ON A FLAT SYNTHETIC GREEN, not hole 1's real one: these pin the PUTT
+// CONTRACT (the bar's top is a target in yards and the roll delivers it), and
+// a bunker behind the real green would make "10yd short" a sand shot.
 const realGroundP = groundAt, realHeightP = heightAt;
 groundAt = ()=> ({h: 0, s: SURF_GREEN});
 heightAt = ()=> 0;
@@ -527,9 +446,8 @@ for (const yd of [6, 10, 16])
     const f = puttFrom(20, 20/PUTT_MAX).stop, h = puttFrom(20, 10/PUTT_MAX).stop;
     eq(Math.abs(h - f/2) < 2, true, 'half the putt bar rolls half as far');
 }
-// THE PATH ENDS ON THE STOP POINT. The ring is drawn at the returned point
-// and the dashed line is drawn along predPath, so if these ever part company
-// the line stops beside the ring instead of running into it.
+// THE PATH ENDS ON THE STOP POINT: the ring is drawn at the returned point
+// and the dashed line along predPath, so they must not part company.
 {
     const r = puttFrom(12, 12/PUTT_MAX);
     const end = predPath[predPath.length-1];
@@ -539,15 +457,10 @@ for (const yd of [6, 10, 16])
     eq(predPath.length > 8, true, 'and has enough points to read as a line');
 }
 groundAt = realGroundP; heightAt = realHeightP;
-// THE DEFAULT PUTT TARGET MUST OVERSHOOT THE CUP. resetTarget aims the bar
-// PUTT_OVER past the hole, and that is not a nicety: with the bar topping
-// out AT the cup, every stroke that is not perfect at the very top of the
-// meter falls short, so the hole is unreachable in practice. This pins that
-// the cup lands strictly INSIDE the bar (which is also the condition under
-// which renderMeter draws its marker at all) with real room past it.
-// On a FLAT SYNTHETIC GREEN, so this measures the target rule and not hole
-// 1's green happening to end before 20yd - a putt from the rough beyond it
-// barely rolls, which is honest physics but a different test.
+// THE DEFAULT PUTT TARGET MUST OVERSHOOT THE CUP: with the bar topping out AT
+// the cup every stroke short of perfect falls short. This pins that the cup
+// lands strictly INSIDE the bar (the condition under which renderMeter draws
+// its marker) with real room past it, on a FLAT SYNTHETIC GREEN.
 {
     const realGround = groundAt, realHeight = heightAt;
     groundAt = ()=> ({h: 0, s: SURF_GREEN});
@@ -568,13 +481,9 @@ groundAt = realGroundP; heightAt = realHeightP;
 }
 eq(PUTT_OVER > 1, true, 'the putt bar always reaches past the hole');
 
-// THE SECOND CLICK HAS TO BITE ON A PUTT. Since 2026-09-01 a putt takes the
-// same three clicks as everything else, and push/pull is an ANGLE: the .05
-// the rest of the bag uses is ten yards of miss on a drive and two
-// CENTIMETRES on a ten yard putt, so the shared value left the new accuracy
-// phase completely inert - MEASURED, every error at every distance still
-// dropped. PUTT_PUSH is the putter's own coefficient; this pins that it
-// bites, and that it stays kind to the short ones.
+// THE SECOND CLICK HAS TO BITE ON A PUTT. Push/pull is an ANGLE, and the .05
+// the rest of the bag uses is centimetres on a ten yard putt, so PUTT_PUSH is
+// the putter's own coefficient: it must bite, and stay kind to the short ones.
 {
     const realGround = groundAt, realHeight = heightAt;
     groundAt = ()=> ({h: 0, s: SURF_GREEN});    // the METER, not the terrain
@@ -602,13 +511,8 @@ eq(PUTT_OVER > 1, true, 'the putt bar always reaches past the hole');
     groundAt = realGround; heightAt = realHeight;
 }
 
-// A PUTT PREDICTION SIMULATES THE LIE. This is what replaced the friction
-// ratio the HUD used to scale its estimate by: ask the same target from the
-// rough and the ball simply does not get there, and the chip now says so.
-// Both halves run on the same FLAT SYNTHETIC ground so the only difference
-// between them is the surface: the real hole 1 has a bunker behind the green
-// (see the putt-contract block above), which made the on-green baseline a
-// sand shot and the comparison meaningless.
+// A PUTT PREDICTION SIMULATES THE LIE: the same target from the rough does
+// not get there, and the chip says so. Same FLAT SYNTHETIC ground for both.
 {
     const realGround = groundAt, realHeight = heightAt;
     heightAt = ()=> 0;
@@ -623,11 +527,9 @@ eq(PUTT_OVER > 1, true, 'the putt bar always reaches past the hole');
 }
 
 // ---- hideTrees: props close to the ball leave BOTH the picture and the
-// collision set (a hidden tree used to still block the ball), and the set
-// is rebuilt from scratch each shot so they come back.
-// hole.near is everything the ball can hit: the EVEN kinds, trees (k=0) and
-// bushes (k=2). The odd kinds are scenery - k=1 the far forest, k=3 the
-// wildflowers. A bush is a low tree; a flower is a lower one. ----
+// collision set, rebuilt each shot so they come back. hole.near is the EVEN
+// kinds the ball can hit, trees (k=0) and bushes (k=2); the odd kinds are
+// scenery, k=1 the far forest and k=3 the wildflowers ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 const hittable = (t)=> !(t.k & 1);
 const allNear = hole.trees.filter(hittable).length;
@@ -641,20 +543,15 @@ ball.x = victim.x + 500; ball.z = victim.z + 500;
 hideTrees();
 eq(hole.near.length, allNear, 'moving the ball away restores every near tree');
 // Wildflowers are scenery and must NEVER be collidable: they are scattered
-// through the rough, where the ball actually lands, so a collidable one
-// would be an invisible wall in play (bushes moved difficulty +2.2 when
-// they gained collision, and they are far bigger and far fewer).
+// through the rough, where the ball lands, so one would be an invisible wall.
 const flowers = hole.trees.filter(t => t.k == 3);
 eq(flowers.length > 0, true, 'hole 1 scatters wildflowers');
 eq(hole.near.some(t => t.k == 3), false, 'no wildflower is ever in the collision set');
 eq(flowers.every(t => t.s < .4), true, 'and they stay small enough to read as flowers');
 
-// ---- SPIN HOLDS THE CARRY AND TRADES THE ROLL. All three land in much the
-// same place; what differs is the arc getting there and the run afterwards.
-// Spin is a launch-angle change (SPIN_LOFT), and launchVel solves velocity
-// from the angle to hit the club's stated carry, so equal carries are the
-// mechanism working rather than a coincidence to be tolerated. Backspin
-// used to fly 13.6% further than no spin, which made it a free upgrade ----
+// ---- SPIN HOLDS THE CARRY AND TRADES THE ROLL: spin is a launch-angle
+// change (SPIN_LOFT) and launchVel solves velocity to hit the stated carry,
+// so all three land together. Backspin flying FURTHER would be a free upgrade ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 hole.wind.s = 0;
 {
@@ -671,10 +568,8 @@ hole.wind.s = 0;
         {
             ballUpdate();
             if (ballAir) apex = Math.max(apex, ball.y);
-            // TRUE first touchdown. NOT `!ballAir`: that only clears once the
-            // ball has finished BOUNCING, which is a different number and 45yd
-            // further out on a driver. Reading it as carry is what hid a 13.6%
-            // backspin advantage behind an apparent 0.2%.
+            // TRUE first touchdown, NOT `!ballAir`: that only clears once the
+            // ball has finished BOUNCING, 45yd further out on a driver
             if (bounces && !carry) carry = ball.z;
         }
         ballEvent = 0;
@@ -682,13 +577,9 @@ hole.wind.s = 0;
     };
     const back = shot(-1), flat = shot(0), top = shot(1);
     hole.near = realNear; groundAt = realGround; heightAt = realHeight;
-    // BACKSPIN lands where a normal shot lands - the loft change holds the
-    // carry on its own. TOPSPIN gives carry up on purpose (a 6% power cut in
-    // launchBall) so that its roll is bought rather than handed to it.
-    // 6%, not 3%: with real drag and lift the loft change no longer holds
-    // the carry exactly - backspin measures -3.8% on a driver - and spin
-    // costing a little carry is honest. What must not come back is backspin
-    // being LONGER, which is what made it a free upgrade.
+    // BACKSPIN lands about where no spin lands (drag and lift cost it ~4% on
+    // a driver, which is honest); TOPSPIN gives carry up on purpose (a 6%
+    // power cut in launchBall) so its roll is bought. Backspin is never LONGER.
     eq(Math.abs(back.carry/flat.carry - 1) < .06, true,
         'backspin lands about where no spin lands: carry within 6%');
     eq(back.carry < flat.carry, true, 'and never further: backspin is not a free upgrade');
@@ -697,16 +588,14 @@ hole.wind.s = 0;
         'backspin flies the highest arc, topspin the flattest');
     eq(back.run < flat.run && flat.run < top.run, true,
         'backspin stops fastest, topspin runs out furthest');
-    // Topspin is now the longest in TOTAL, which is the design (and real
-    // golf): it buys roll and pays by not being able to stop. The bound just
-    // catches a retune running away with it.
+    // Topspin is the longest in TOTAL by design: it buys roll and pays by not
+    // stopping. The bound catches a retune running away with it.
     const spread = Math.max(back.total, flat.total, top.total)/Math.min(back.total, flat.total, top.total);
     eq(spread < 1.25, true, 'the roll advantage stays bounded: totals within 25%');
 }
 
 // ---- autoClub must not hand you a club that cannot reach: off the green
-// the putter's range is 120/friction (20yd on fairway), but it used to be
-// picked for anything inside 26yd ----
+// the putter's range is 120/friction (20yd on fairway) ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 {
     const realGround = groundAt;
@@ -718,10 +607,8 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
     groundAt = realGround;
 }
 
-// ---- a ball resting against a trunk must be able to leave. It used to be
-// trapped: the collision fires on the first step of every shot, kills the
-// speed and drops it back, so the bot creeped 0.2yd a stroke to the mercy
-// cap. Only a ball moving INTO a tree is stopped now ----
+// ---- a ball resting against a trunk must be able to leave: only a ball
+// moving INTO a tree is stopped, or every shot dies on its first step ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 hole.wind.s = 0;
 {
@@ -732,17 +619,13 @@ hole.wind.s = 0;
     hole.near = [tree];
     ball.x = ball.z = ball.y = 0;              // dead inside the trunk
     // CLUB_PUTTER-1 is the SW: an index that survives a club being added
-    // to the bag, which 8 did not - the 13 iron shifted it to the PW and
-    // the extra 30yd of carry sailed straight past this check.
+    // to the bag
     launchBall(CLUB_PUTTER-1, 1, 0, 0, 0, 1);  // SW straight down z
     for (let i=0; i<900 && !ballEvent; ++i) ballUpdate();
     ballEvent = 0;
     const escaped = Math.hypot(ball.x, ball.z);
-    // And a ball flying INTO the same tree is still stopped by it. SIX yards
-    // back with a driver, not 40 with a wedge: since drag and lift went in, a
-    // wedge from 40 flies clean over a canopy centred at ground level and
-    // rolls past, so the old case tested nothing. Six yards is inside the
-    // climb, where the ball is still at canopy height.
+    // And a ball flying INTO the same tree is still stopped. SIX yards back
+    // with a driver: inside the climb, where the ball is still at canopy height.
     ball.x = 0; ball.z = -6; ball.y = 0;
     launchBall(0, 1, 0, 0, 0, 1);
     for (let i=0; i<900 && !ballEvent; ++i) ballUpdate();
@@ -753,12 +636,9 @@ hole.wind.s = 0;
     eq(blocked < 45, true, 'but a ball flying into that tree is still stopped');
 }
 
-// ---- a ball that comes DOWN in the cup is holed whatever its speed. The
-// rolling test has a speed limit a shot in flight can never meet, so
-// without this a hole in one is impossible.
-// pinOut is forced: this is about the CUP, and with the flagstick in, the
-// post deflects the ball before it ever gets there. The old .81yd aerial
-// cup was wide enough to catch it anyway, which hid the confound. ----
+// ---- a ball that comes DOWN in the cup is holed whatever its speed, or a
+// hole in one is impossible (the rolling test has a speed limit a shot in
+// flight never meets). pinOut is forced: with the stick in, the post deflects ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 {
     const realGround = groundAt, realHeight = heightAt, realNear = hole.near;
@@ -778,9 +658,8 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
     eq(ev, EV_HOLED, 'a fast ball landing in the cup is holed (a hole in one can happen)');
 }
 
-// ---- the cup is wider to a ball dropping in than to one rolling across:
-// a chip or a bounce landing on the rim can drop, where a putt skidding
-// over the same spot would not ----
+// ---- the cup is wider to a ball dropping in than to one rolling across: a
+// chip landing on the rim can drop where a putt skidding over it would not ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 {
     const realGround = groundAt, realHeight = heightAt, realNear = hole.near;
@@ -807,10 +686,9 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
     eq(roll, EV_STOPPED, 'the same spot rolled over is not');
 }
 
-// ---- the landing prediction must work from a bunker. groundAt drops .5yd
-// inside one (the scoop) but the flight loop ends against heightAt, so a
-// ball started at groundAt+.1 was already "below ground" on step one and
-// the ring stuck to the ball ----
+// ---- the landing prediction must work from a bunker: groundAt drops .5yd
+// inside the scoop while the flight loop ends against heightAt, so a ball
+// started at groundAt+.1 must not read as "below ground" on step one ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 {
     const realGround = groundAt, realHeight = heightAt, realNear = hole.near;
@@ -824,10 +702,9 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
     eq(Math.hypot(p.x-ball.x, p.z-ball.z) > 20, true, 'a sand shot is predicted to fly, not to land on the ball');
 }
 
-// ---- the predicted landing must slide smoothly as the aim turns. It used
-// to stop at the END of whichever step first went under the ground, and a
-// step is over half a yard at landing speed, so the ring snapped whenever
-// the step count changed ----
+// ---- the predicted landing must slide smoothly as the aim turns: a step is
+// over half a yard at landing speed, so ending at the END of the first step
+// under ground would snap the ring whenever the step count changes ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 hole.wind.s = 0;
 ball.x = ball.z = 0; ball.y = groundAt(0, 0).h;
@@ -844,8 +721,7 @@ ball.x = ball.z = 0; ball.y = groundAt(0, 0).h;
         }
         prev = p;
     }
-    // the worst frame must not far outrun the average one: it used to be
-    // twice it, which is the snap
+    // the worst frame must not far outrun the average one (twice it is the snap)
     eq(maxJump < sum/n*1.25, true, 'the landing point slides evenly as the aim turns (no step snapping)');
 }
 
@@ -868,16 +744,14 @@ const bandOf = (a)=>
 };
 
 // the two markers the game actually emits. The foliage expression MIRRORS
-// pushTreeGL's leaf.a line - it had drifted out of sync once and passed
-// vacuously; keep them identical or this check pins nothing.
+// pushTreeGL's leaf.a line: keep them identical or this check pins nothing.
 eq(bandOf(.997), 'water', 'water marker (groundColor) lands in the water band');
-for (let wind=0; wind<=20; ++wind)
-    eq(bandOf(.92 + Math.min(wind/12, 1)*.07), 'foliage',
+for (let wind=0; wind<=8; ++wind)
+    eq(bandOf(.92 + wind/8*.07), 'foliage',
         `foliage marker stays in its band at wind ${wind}`);
 
-// opaque geometry - trunks, terrain, pin, ball - must match NOTHING. This is
-// the p61 bug: alpha 1 fell through the water test into the foliage branch
-// and every solid vertex in the game swayed.
+// opaque geometry - trunks, terrain, pin, ball - must match NOTHING: alpha 1
+// falling into the foliage branch would make every solid vertex sway
 eq(bandOf(1), 'opaque', 'fully opaque geometry matches no effect band');
 
 // every alpha the dynamic batch emits must stay clear of both bands
@@ -885,12 +759,9 @@ for (const a of [.1, .3, .35, .5, .55, .7, .75, .8])
     eq(bandOf(a), 'none', `dynamic-batch alpha ${a} claims no effect band`);
 
 // ---- the swing meter. Phase 1 offers every power twice, climbing and
-// falling, and BOTH give the same sweep: it starts at the power mark and
-// only ever falls, so the cursor never reverses under the player and the
-// reaction time is a pure function of the power chosen. Making the falling
-// click bounce off the top was tried on 2026-08-30 and reverted the same
-// day (Frank: "it feels a little bit weird"), so these cases exist to stop
-// it coming back by accident. ----
+// falling, and BOTH give the same sweep: it starts at the power mark and only
+// ever falls, so the cursor never reverses under the player and the reaction
+// time is a pure function of the power chosen ----
 const swing = (target, onWayDown)=>
 {
     meterStart();
@@ -917,9 +788,8 @@ eq(down.peak <= down.power + 1e-9, true, 'the sweep never rises above the power 
 const big = swing(.9, 0);
 eq(Math.abs(down.secs - up.secs) < .05, true, 'both routes to a power give the same sweep');
 eq(big.secs > up.secs*2, true, 'and a bigger power buys proportionally more of it');
-// the punishment for running the sweep out is unchanged either way, and a
-// click during the climb is judged by where the cursor LOOKS - so the error
-// range is still -METER_OVER..1 and the bounce cannot invent a worse miss
+// running the sweep out is punished the same either way, and a click during
+// the climb is judged by where the cursor LOOKS: the error range stays -METER_OVER..1
 eq(up.impact.toFixed(3), (-METER_OVER).toFixed(3), 'a sweep run out is maximally late');
 eq(down.impact.toFixed(3), (-METER_OVER).toFixed(3), 'on either route');
 meterStart();
@@ -927,11 +797,9 @@ for (let f = 0; f < 600; ++f) if (meterUpdate(meterT > 1 && meterPos() <= .2, 0)
 meterUpdate(0, 0); meterUpdate(0, 0);
 eq(meterPos() <= 1 && meterPos() >= -METER_OVER, true, 'the cursor stays on the bar while it climbs');
 
-// ---- the ball rolls. pushLathe gained `roll`, and `rot` became a real
-// rotation about Y instead of an offset added to the lathe angle. Those are
-// the SAME transform - sin(a+rot) expands to cos(rot)sin(a) + sin(rot)cos(a),
-// which is what the frame rotation computes - and every other caller (trees,
-// bushes, the pin, trunk boxes) relies on that, so it is pinned first. ----
+// ---- the ball rolls. pushLathe's `rot` is a real rotation about Y, which
+// must equal the plain sin(a+rot) offset form every other caller (trees,
+// bushes, the pin, trunk boxes) relies on, so that is pinned first ----
 const Q = Math.SQRT1_2;                       // an EXACT unit-sphere profile
 const SPHERE = [[0,-1],[Q,-Q],[1,0],[Q,Q],[0,1]];
 const CONE = [[0,0],[1,2]];                   // NOT Y-symmetric: rot shows on it
@@ -949,7 +817,7 @@ const latheVerts = (prof, ...args)=>
 };
 const same = (a, b)=> a.length == b.length
     && a.every((p, i)=> Math.hypot(p[0]-b[i][0], p[1]-b[i][1], p[2]-b[i][2]) < 1e-6);
-// the old form, written out: the angle carried rot and nothing else moved
+// the offset form, written out: the angle carries rot and nothing else moves
 const oldForm = (prof, rot)=>
 {
     const out = [];
@@ -971,10 +839,9 @@ for (const rot of [0, .4, 2.7, -1.3])
     eq(same(latheVerts(CONE, rot), oldForm(CONE, rot)), true,
         `rot ${rot} on a cone still matches the old sin(a+rot) form exactly`);
 eq(same(latheVerts(CONE, .4), latheVerts(CONE, .4, 0)), true, 'omitting roll matches passing zero');
-// the roll is a ROTATION, so however it is rolled every vertex stays on the
-// sphere - it can never squash the ball or drift it off its position. 1e-6,
-// not tighter: glVertexData is a Float32Array, so an exact rotation still
-// reads back about 1e-7 off.
+// the roll is a ROTATION, so every vertex stays on the sphere - it can never
+// squash the ball or drift it off its position. 1e-6, not tighter:
+// glVertexData is a Float32Array, so an exact rotation reads back ~1e-7 off.
 for (const [rot, roll] of [[0,.7], [1.1,2.4], [-3,-5]])
     eq(latheVerts(SPHERE, rot, roll).every(p => Math.abs(Math.hypot(p[0],p[1],p[2]) - 1) < 1e-6),
         true, `rot ${rot} roll ${roll} keeps every vertex on the sphere`);
@@ -984,13 +851,10 @@ const top = (roll)=> latheVerts(SPHERE, 0, roll).reduce((b, p)=> p[1] > b[1] ? p
 eq(top(.3)[2] > .05, true, 'rolling forward carries the top of the ball forward');
 eq(top(0)[2] < 1e-6 && top(0)[1] > .99, true, 'and at rest the pole is straight up');
 
-// ---- WHAT YOU SEE IS WHAT YOU GET. A frame is drawn at the END of a fixed
-// update, so the cursor the player reacts to is meterPos() as it stood then,
-// and the click reaches meterUpdate on the NEXT one. meterUpdate therefore
-// reads the click BEFORE moving the cursor. It used to move first: a step is
-// DT/METER_DOWN_TIME = .0208, wider than the sweet spot's half-width, so
-// clicking dead centre of the painted band scored .0208 late and the band's
-// whole lower half could not produce a perfect strike at all. ----
+// ---- WHAT YOU SEE IS WHAT YOU GET: a frame is drawn at the END of a fixed
+// update and the click reaches meterUpdate on the NEXT one, so meterUpdate
+// reads the click BEFORE moving the cursor. A step (.0208) is wider than the
+// sweet spot's half-width, so moving first would make half the band unmakeable ----
 let mismatch = 0, perfectSeen = 0, powersWithNoPerfect = 0;
 for (let p = 4; p < 60; ++p)          // a spread of powers, off the step grid
 {
@@ -1017,14 +881,9 @@ eq(mismatch, 0, 'the impact recorded is exactly the cursor position last drawn')
 eq(perfectSeen > 0, true, 'and a perfect strike is reachable');
 eq(powersWithNoPerfect, 0, 'from every power, not just lucky ones');
 
-// ---- SMACKING A HILL MUST COST DISTANCE, NOT ADD IT. The climbing-slope
-// reflection used to preserve the whole tangential velocity and did not
-// count as a bounce, so a flat topspin drive banked off a 31-degree face
-// 25yd short of its carry, popped 5yd into the air and finished PAST its
-// flat-ground total (281 vs 276yd) - with the x1.7 first-bounce topspin
-// keep STILL unspent for the eventual landing. That is the shot Frank hit.
-// A hill smack is a bounce: it scrubs with the surface keep and spends the
-// first-bounce spin bite like any other. ----
+// ---- SMACKING A HILL MUST COST DISTANCE, NOT ADD IT: a hill smack is a
+// bounce, scrubbing with the surface keep and spending the first-bounce spin
+// bite, or a topspin drive banked off a face finishes PAST its flat total ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 {
     const realH = heightAt, realG = groundAt, realNear = hole.near, realWind = hole.wind;

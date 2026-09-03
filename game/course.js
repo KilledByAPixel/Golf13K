@@ -2,9 +2,8 @@
 
 /*  SUNSHINE GOLF CLASSIC - procedural course
     World units are yards. x = lateral, z = downrange from tee, y = up.
-    Each hole is an analytic description (no stored grids):
-    heightAt / surfaceAt / groundAt are the single source of truth for
-    gameplay, the 3D swing view, and the top-down map. */
+    Each hole is analytic (no stored grids): heightAt / surfaceAt / groundAt
+    are the single source of truth for gameplay, the 3D view and the map. */
 
 // surface types (priority order handled in surfaceAt)
 // Canopy centre above ground. A bush (k=2) and a flower (k=3) are trees
@@ -14,29 +13,24 @@ const SURF_ROUGH=0, SURF_FAIRWAY=1, SURF_GREEN=2, SURF_TEE=3,
       SURF_BUNKER=4, SURF_WATER=5, SURF_OB=6;
 const SURF_NAMES = ['ROUGH','FAIRWAY','GREEN','TEE','SAND','WATER','OB'];
 
-// The look drifts over the round like seasons: every colour is [h,s,l] at
-// hole 1 and at hole 18, lerped per hole. The endpoint NUMBERS choose the
-// hue path - the horizon's 378 (= 18) goes the long way round so mid-round
-// is dusk, not a green sky. hsl() wraps.
+// Seasons: every colour is [h,s,l] at hole 1 and at hole 18, lerped per
+// hole. The endpoint NUMBERS choose the hue path - the horizon's 378 (= 18)
+// goes the long way round so mid-round is dusk, not a green sky. hsl() wraps.
 const PAL =
 {
     rough:[[95,45,36],[42,45,32]], fair:[[112,60,45],[85,45,40]], green:[[130,62,52],[120,55,46]],
     sand:[[47,85,74],[28,85,66]], water:[[203,80,55],[255,60,50]],
     sky0:[[207,90,70],[268,70,58]], sky1:[[168,70,86],[378,95,72]],
     tree:[[118,52,32],[15,55,32]], trunk:[[25,50,30],[-10,30,28]], sun:[[50,100,90],[0,100,60]],
-    // WILDFLOWERS: only the saturation and lightness drift over the round.
-    // The HUE is replaced per hole in genHole with a random one - flowers are
-    // the one thing that does NOT follow the seasonal gradient, so their
-    // colour pops instead of easing into the next hole's.
+    // WILDFLOWERS: only saturation and lightness drift; the hue is replaced
+    // per hole in genHole, so flowers pop instead of easing into the season.
     flower:[[0,90,72],[0,80,68]],
 };
 
-// classic 18 hole table: [par, lenScale, fairwayW, dogleg, bunkers, water, treeDen, hills]
-// dogleg: 0 none, +-(0..1) single bend strength/direction, 2 = double bend (par 5 S)
-// fairwayW is the REAL width (0 = a par 3 with none). Note the hazard and
-// tree offsets all measure from fw/2, so widening a hole here also pushes
-// its bunkers, water and framing trees out - they sit relative to the
-// fairway edge, not to the centreline.
+// classic 18 hole table. dogleg: 0 none, +-(0..1) single bend
+// strength/direction, 2 = double bend (par 5 S). fairwayW is the REAL
+// width (0 = a par 3 with none); hazards and framing trees offset from
+// fw/2, so widening a hole here also pushes them out.
 const CLASSIC_HOLES =
 [
     // [par, lenScale, fairwayW, dogleg, bunkers, water, treeDen, hills]
@@ -56,12 +50,12 @@ const CLASSIC_HOLES =
     [5,1.00, 34,   2, 2, .7,  1, .6],
     [4,1.05, 33,   0, 3, .5, .6, .8],
     // back: Cliffs - narrow, hilly, mean
-    [4,1.05, 30,   .5, 3, .3,1.2,1.2],
+    [4,1.05, 30,   .5, 3, .3,1.2,1.1],
     [4,1.10, 28,   -1, 3, 0, 1.2, .8],
     [5,1.05, 30,   2.3,2, .5,1.0,  1],
     [3,1.10,  0,   0,  4,  1, .5,  1],
-    [4,1.20, 26,   1,  4, .6,1.4,1.3],
-    [5,1.10, 28,   2,  3, .8,1.4,1.2],
+    [4,1.20, 26,   1,  4, .6,1.3,1.2],
+    [5,1.10, 28,   2,  3, .8,1.4,1.1],
 ];
 
 let hole;          // current generated hole
@@ -144,8 +138,7 @@ function heightAt(x, z)
     // rises into hills (same distToPath query surfaceAt uses)
     const far = clamp((distToPath(x, z) - 110)/250);
     h += far*far*(18 + 50*noise2(x*.004+3, z*.004));
-    // shores: terrain eases down to meet each lake so hillside water reads
-    // naturally (and balls roll toward hazards - real golf cruelty)
+    // shores: terrain eases down to meet each lake (balls roll toward hazards)
     for (const w of hole.waters)
     {
         const nd = ellipseDist(x, z, w);
@@ -159,18 +152,10 @@ function heightAt(x, z)
     // tee pad (the tee is the origin)
     const kt = smoothStep(clamp(1 - Math.hypot(x, z)/14));
     h = lerp(h, hole.teeH, kt);
-    // BUNKERS SCOOP A BOWL, ramped like the shores above - and it has to
-    // live HERE, in heightAt, not in groundAt. slopeAt reads heightAt and
-    // nothing else, so a scoop applied later gave the ball half a yard of
-    // cliff to fall down at the exact ellipse edge and no gradient at all to
-    // feel on the way out: it dropped like a stair and then rolled off as if
-    // the sand were flat. Every other feature here is smoothed; this was the
-    // one that was not. As a bowl the sand also gathers a ball the way it
-    // should, instead of merely recolouring the ground under it.
-    // ...and the GREEN OUT-RANKS THE SAND, exactly as surfaceAt has it: a
-    // bunker ellipse often laps over the putting surface, and without this
-    // the scoop dents a green that reads as green. k is the plateau blend
-    // computed above, so (1-k) fades the sand out under it for free.
+    // bunkers scoop a ramped bowl. It must live HERE: slopeAt reads heightAt
+    // and nothing else, so a scoop in groundAt is a cliff at the ellipse edge
+    // with no gradient. The GREEN OUT-RANKS THE SAND, as in surfaceAt - k is
+    // the plateau blend above, so (1-k) fades the scoop out under it.
     for (const b of hole.bunkers)
         h -= .5*(1-k)*smoothStep(clamp((1 - ellipseDist(x, z, b))/.3));
     return h;
@@ -186,8 +171,7 @@ function slopeAt(x, z, e=.5)
 function surfaceAt(x, z)
 {
     const dp = distToPath(x, z);
-    // wide playable corridor with a noise-perturbed boundary (organic, not
-    // a rectangle) - deep rough band before OB
+    // playable corridor with a noise-perturbed boundary, deep rough before OB
     if (dp > 62 + (noise2(x*.05, z*.05)-.5)*18)
         return SURF_OB;
     const dg = Math.hypot(x-hole.green.x, z-hole.green.z);
@@ -206,8 +190,7 @@ function surfaceAt(x, z)
         }
     if (hole.fw && lastAlong > 8 && lastAlong < hole.len - 2)
     {
-        // fairway breathes: width swells and pinches along the hole,
-        // edges wiggle so mow lines read hand-shaped
+        // fairway breathes: width swells and pinches along the hole, edges wiggle
         const fwHere = hole.fw*(1 + (noise2(lastAlong*.014, hole.index*7+3)-.5)*.9);
         if (dp < fwHere/2 + (noise2(x*.09+5, z*.09)-.5)*7)
             return SURF_FAIRWAY;
@@ -216,8 +199,7 @@ function surfaceAt(x, z)
 }
 
 // combined ground query: height + surface. Water is flat at its lake level
-// (surfaceAt just set lastWater); the bunker scoop is in heightAt, so the
-// ground here is simply the terrain.
+// (surfaceAt just set lastWater); the bunker scoop is already in heightAt.
 function groundAt(x, z)
 {
     const s = surfaceAt(x, z);
@@ -239,8 +221,7 @@ function genHole(courseSeed, index, row)
     for (const k in PAL)
         pal[k] = PAL[k][0].map((v, i)=> lerp(v, PAL[k][1][i], index/17));
  
-    // ...except the wildflowers, whose hue jumps around per hole instead of
-    // easing along with the season, so their colour pops.
+    // ...except the wildflower hue, re-rolled per hole (see PAL)
     pal.flower[0] = 30 - R.float(240);
 
     hole = {par, len, fw, hills, pal, index,
@@ -284,38 +265,19 @@ function genHole(courseSeed, index, row)
     const pd = R.float(0, hole.gr*.5);
     hole.pin = {x: end.x + Math.sin(pa)*pd, z: end.z + Math.cos(pa)*pd};
 
-    // WIND IS ROLLED FRESH EVERY PLAY (rand, not R), so a hole never plays
-    // the same twice - and it takes NOTHING from the R stream, so wind can
-    // be retuned without re-rolling the course. (The two throwaway R draws
-    // that once guarded this spot are gone - there is nothing to protect.)
+    // WIND IS ROLLED FRESH EVERY PLAY (rand, not R): a hole never plays the
+    // same twice, and wind can be retuned without re-rolling the course.
     // Never zero - an arrow pointing nowhere reads as a bug. MAXWIND scales
-    // the WHOLE curve, not just its peak. In closed form, so this does not
-    // go stale again: mean wind is 1 + MAXWIND/3, and the share of holes
-    // above s is 1 - sqrt((s-1)/MAXWIND). The square law is what keeps most
-    // holes gentle - drop it and half of them would be near the top.
-    // A UNIT IS NOT A MPH: air velocity is `s*WIND_V` = 1.4 yd/s per unit,
-    // which is 2.86 mph, and the HUD prints `s*2.86` as mph (2026-09-02 - it
-    // used to print the bare unit, which is why a wind of 12 read as mild
-    // and hit like a gale. Frank: "I was wondering why I had set it to
-    // twelve and it seemed like a really strong wind - now that makes
-    // sense"). THE LABEL WAS THE BUG, NOT THE MAGNITUDE.
-    // 9 UNTIL 2026-09-02: range 1..10 = 3..29mph, mean 11mph, 31% of holes
-    // over 15mph and 18% over 20. Dropping it was first rejected the same
-    // day (the mean barely moves, the tail is the per-play variety), then
-    // Frank reopened it on seeing the mph - "it goes a bit high for sure".
-    // What decided it is the FLIGHT MODEL: the range was tuned under the
-    // old flat-push wind, and wind as air velocity through real drag bites
-    // nearly twice as hard per unit. MEASURED at each ceiling, full swings,
-    // carry lost into it / cross drift, driver and SW:
+    // the WHOLE curve: mean wind is 1 + MAXWIND/3 and the share of holes
+    // above s is 1 - sqrt((s-1)/MAXWIND); the square law keeps most holes
+    // gentle. A UNIT IS 2.86 MPH (air velocity `s*WIND_V` = 1.4 yd/s per
+    // unit; the HUD prints `s*2.86`). MEASURED at each ceiling, full swings,
+    // carry lost into a headwind / cross drift:
     //   MAXWIND 9  29mph  1W -19% 40yd   SW -32% 24yd   >20mph 18% of holes
     //   MAXWIND 7  23mph  1W -14% 32yd   SW -24% 19yd   >20mph  7%   <- here
     //   MAXWIND 6  20mph  1W -13% 28yd   SW -21% 16yd   >20mph  0%
-    // 7 is "a little bit" (Frank's words): mean 9.5mph, 22% of holes over
-    // 15mph, and it KEEPS about one 20mph+ hole a round, which is the tail
-    // he valued the first time. 6 deletes that hole entirely.
-    // **glRender's leaf.a divides by the top of this range (1+MAXWIND) to
-    // scale the foliage sway - change one and change the other**, or the
-    // trees stay half-asleep on the windiest hole in the game.
+    // 7 keeps about one 20mph+ hole a round; 6 deletes it. glRender's leaf.a
+    // divides by 1+MAXWIND for the foliage sway - change one, change the other.
     const MAXWIND = 7;
     hole.wind = {a: rand(PI, -PI), s: 1 + rand()**2*MAXWIND};
 
@@ -326,7 +288,7 @@ function genHole(courseSeed, index, row)
         const d = hole.gr + R.float(2, 7);
         const gx = hole.green.x + Math.sin(a)*d, gz = hole.green.z + Math.cos(a)*d;
         if (!index || R.bool(.5) || par == 3 && waterC == 1)
-            hole.bunkers.push({x:gx, z:gz, rx:R.float(6,20), rz:R.float(6,20)});
+            hole.bunkers.push({x:gx, z:gz, rx:R.float(6,18), rz:R.float(6,18)});
         else
         {
             // fairway bunker at a landing zone
@@ -345,7 +307,7 @@ function genHole(courseSeed, index, row)
 
     if (isRiverHole)
     {
-        // long horizontal in center on hole 14
+        // river: a wide lake across the middle of the hole
         const p = pathPointAt(len/2);
         hole.waters.push({x:p.x, z:p.z, rx:60, rz:9});
     }
@@ -372,8 +334,7 @@ function genHole(courseSeed, index, row)
         w.h = Math.min(heightRaw(w.x, w.z), hole.greenH-2) - 1;
 
     // trees {x, z, s: size, c: colour jitter, k: kind} - k 0 = full tree,
-    // 1 = far tree (draws as one canopy), 2 = bush, 3 = wildflower.
-    // ODD kinds are scenery, even kinds collide (see hole.near below)
+    // 1 = far tree (one canopy), 2 = bush, 3 = wildflower; ODD kinds are scenery
     const addTree = (x, z, s, k)=> hole.trees.push({x, z, s, c: R.float(), k});
 
     // framing trees: scattered outside the fairway along the hole
@@ -387,26 +348,23 @@ function genHole(courseSeed, index, row)
             addTree(x, z, R.float(1, 2)**2, 0);
     }
 
-    // periphery forest: clumps and clearings over the whole ground off the
-    // playable corridor
+    // periphery forest: clumps and clearings off the playable corridor
     let x0 = 0, x1 = 0;
     for (const p of P) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); }
     for (let i = 4e3*forestMul; i--;)
     {
         const x = R.float(x0-450, x1+450), z = R.float(-450, len+450);
         const dp = distToPath(x, z);
-        // .48 IS LOAD-BEARING, not a density preference: the draws below
-        // are only spent when this passes, so moving it shifts the R stream
-        // and re-rolls everything after - including every BUSH, which
-        // collides. To tune density, hoist those draws above the if first.
+        // .48 IS LOAD-BEARING: the draws below are spent only when this passes,
+        // so moving it shifts the R stream and re-rolls everything after -
+        // including every BUSH, which collides. Hoist the draws to tune density.
         if (dp > 75 && noise2(x*.02+5, z*.02) > .48)
             addTree(x, z, R.float(1.5, 3)*(1 + R.bool(.25)), dp > 180 ? 1 : 0);
     }
 
-    // Bushes through the rough AND out into the periphery. The offset must
-    // reach past the treeline and accept OB as well as ROUGH - ROUGH only
-    // exists inside ~62yd, so requiring it leaves a ring hugging the
-    // corridor with bare ground beyond.
+    // Bushes through the rough AND out into the periphery: the offset reaches
+    // past the treeline and OB counts as well as ROUGH, since ROUGH only exists
+    // inside ~62yd and requiring it leaves a ring hugging the corridor.
     for (let i=99; i--;)
     {
         const p = pathPointAt(R.float(0, len));
@@ -415,9 +373,8 @@ function genHole(courseSeed, index, row)
         if (s == SURF_ROUGH || s == SURF_OB)
             addTree(x, z, R.float(1, 2), 2);
     }
-    // Wildflowers: a flower is a very low tree with no trunk and its own
-    // hue. LAST in genHole on purpose - every draw here shifts the ones
-    // after it, and there are none.
+    // Wildflowers: a very low tree with no trunk and its own hue. LAST of the
+    // scatter loops on purpose - every draw here shifts the ones after it.
     // KNOBS: 1000 (count), the offset range (how far out), and the size.
     for (let i=1e3; i--;)
     {
@@ -428,33 +385,26 @@ function genHole(courseSeed, index, row)
             addTree(x, z, R.float(.1, .2), 3);
     }
     // THE TREE ON 13: one big trunk in the middle of the fairway, a designed
-    // obstacle rather than a scattered one. AFTER the flower loop so its R
-    // draw cannot re-roll the hole, and BEFORE the hole.near filter below so it
-    // gets a baked t.y and can actually be hit.
+    // obstacle. AFTER the flower loop so its R draw cannot re-roll the hole,
+    // BEFORE the hole.near filter so it gets a baked t.y and can be hit.
     if (isHardTreeHole)
     {
         const p = pathPointAt(len*.28);
         addTree(p.x, p.z, 3, 0);
     }
-    // Everything the ball can hit - trees AND bushes. The odd kinds (1 = the
-    // far forest, 3 = flowers) are scenery, so the test is the low bit.
-    // t.y is the CANOPY CENTRE, not the ground: baking the trunk height in
-    // here is what lets flyStep test one sphere per prop with no per-kind
-    // branch, and is why a bush is just a low tree.
+    // Everything the ball can hit - the even kinds. t.y is the CANOPY CENTRE,
+    // not the ground: baking the trunk height in lets flyStep test one sphere
+    // per prop with no per-kind branch.
     for (const t of hole.near = hole.trees.filter(t => !(t.k & 1)))
         t.y = heightAt(t.x, t.z) + trunkH(t);
     return hole;
 }
 
-// The 18 hole rows for a course.
-// REMIX is the classic course RE-DEALT: the same hand-tuned rows shuffled,
-// under a seed that also re-rolls every hole's land, pin, wind and scenery.
-// It plays like a new course without synthesising a single row, and the
-// authored character - the two island par 3s, the long dogleg fives - rides
-// along wherever those rows land. The index-keyed specials (river 10,
-// island 12, hard trees 13) then dress whatever arrives there.
-// The shuffle MUST derive from the SEED, which the save stores, or a
-// continued remix round would re-deal itself a different hole order.
+// The 18 hole rows. REMIX is the classic course RE-DEALT: the same rows
+// shuffled under a seed that also re-rolls every hole's land, pin and
+// scenery, and the index-keyed specials (river 10, island 12, hard tree 13)
+// dress whatever row arrives there. The shuffle MUST derive from the SEED
+// the save stores, or a continued remix round would re-deal a new order.
 function genCourse(seed, remix)
 {
     if (!remix)

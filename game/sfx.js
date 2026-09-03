@@ -5,16 +5,11 @@
     rewards), never ear-tuned. The first parameter is the volume. */
 
 // OUR OWN ZzFX generator, so the dev build runs exactly the code that ships.
-// The parameter POSITIONS are ZzFX's, untouched, so the arrays below are
-// ordinary zzfx sounds - but every feature this game never sets is gone:
-// randomness (Sfx does its own pitch jitter per play and passes 0 here, so
-// the rand() call was a no-op that still burned a Math.random draw),
-// modulation, bitCrush, tremolo, the biquad LP/HP filter, and (2026-08-31)
-// the saw/tan/square wave shapes - the arrays only ever use sin, triangle
-// and noise. The earlier cuts used to be regexes in build.mjs, which meant
-// the code you stepped through in dev was not the code that shipped.
-// Verified sample-identical to the engine's zzfxG on all of this game's
-// sounds (re-verified byte-exact after the shape cut).
+// The parameter POSITIONS are ZzFX's, so the arrays below are ordinary zzfx
+// sounds, but every feature this game never sets is gone: randomness (Sfx
+// applies its own pitch jitter per play and passes 0 here), modulation,
+// bitCrush, tremolo, the biquad LP/HP filter, and the saw/tan/square wave
+// shapes. Sample-identical to the engine's zzfxG on all of this game's sounds.
 const sfxGen = (volume = 1, randomness, frequency = 220, attack = 0,
     sustain = 0, release = .1, shape = 0, shapeCurve = 1, slide = 0,
     deltaSlide = 0, pitchJump = 0, pitchJumpTime = 0, repeatTime = 0,
@@ -38,12 +33,11 @@ const sfxGen = (volume = 1, randomness, frequency = 220, attack = 0,
     for (length = attack + decay + sustain + release + delay | 0;
         i < length; b[i++] = s * volume)               // sample
     {
-        // Wave shape - ONLY the shapes this game's arrays use ship (Frank's
-        // audit, 2026-08-31): 0 sin, 1 triangle, anything above = noise (4).
-        // Saw (2), tan (3) and square-with-duty (5) are gone; a new sound
-        // wanting one puts its branch back from zzfx. Square was also the
-        // one shape that skipped the curve, so the curve now applies
-        // unconditionally.
+        // Wave shape - only the shapes this game's arrays use: 0 sin,
+        // 1 triangle, anything above = noise (4). Saw (2), tan (3) and
+        // square (5) are gone; a new sound wanting one puts its branch back
+        // from zzfx (square also skipped the curve, which applies
+        // unconditionally here).
         s = shape? shape>1?
             Math.sin(t**3) :                           // 4 noise
             1-4*abs(Math.round(t/PI2)-t/PI2):          // 1 triangle
@@ -84,9 +78,8 @@ const sfxGen = (volume = 1, randomness, frequency = 220, attack = 0,
     return b;
 };
 
-// The engine's Sound carried a panner, range, loop and stop this game never
-// used, and a master gain node that only ever held one constant. All gone
-// from the engine now; this is the whole graph: samples -> gain -> out.
+// Replaces the engine's Sound, whose panner, range, loop, stop and master
+// gain node this game never used. The whole graph: samples -> gain -> out.
 class Sfx
 {
     constructor(z)
@@ -103,8 +96,7 @@ class Sfx
         b.getChannelData(0).set(this.s);
         src.buffer = b;
         src.playbackRate.value = rate*(1 + this.j*jitter*rand(-1, 1));
-        // soundVolume was the master gain node's value; applied here
-        // instead, so the graph is samples -> gain -> destination
+        // soundVolume is the engine's master gain, applied here instead
         g.gain.value = volume * soundVolume;
         src.connect(g).connect(ctx.destination);
         // a click resumes the context, but that is async: start after it
@@ -122,11 +114,10 @@ const snd_nice    = new Sfx([,,500,.02,.1,1,1,,,,250,,.05,,,,.1]);           // 
 const snd_hole    = new Sfx([.6,,800,,,.4,,2,,,800,.05]);        // coin (cup rattle)
 const snd_fanfare = new Sfx([,,800,,,.4,,2,,,800,,.1]); // high coin
 const snd_tick    = new Sfx([.3,,500,,,.03,,,9]);              // UI: view toggle, power set
-// UI: nudging a shot setting
 const snd_adjust  = new Sfx([.15,,1200,,,.01,,,6]);           // UI: club/spin/distance
 const snd_ob      = new Sfx([.5,,880,.05,.2,.5,1,.3,,6,-100,.1,.2]);     // fail slide
 
-// blay bound sound with volume scaled by speed
+// bounce sound, volume scaled by speed
 function sfxBounce(surf, speed)
 {
     const v = clamp((speed/40)**.5);
@@ -165,7 +156,7 @@ function updateMusic()
     if (beat%32 == 0)
         bassNote = leadNote = chord = beat%128 ? chord + randSign() : 0;
 
-    // hat on eighths, dropping out for the last bar of every 4 so the loop
+    // hat on eighths, plus the odd random one, louder mid-bar
     if (beat%2 == 0 || !randInt(9))
         snd_bounce.play(((beat>>1)%4 - 2 ? .2 : .4) - rand(.1));
     if (beat%4 == 0)

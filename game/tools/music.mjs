@@ -1,23 +1,22 @@
 // Render the music and the sound effects through zzfxG and compare them
 // objectively: peak (clipping) and RMS (does the music sit under the
-// effects?). Claude cannot hear any of this, so these numbers are the only
-// check on the mix that does not need Frank's ears.
+// effects?). A headless run cannot listen, so these numbers are the only
+// check on the mix that does not need ears.
 //
-// NOTHING here is a copy of the game's data. The instrument arrays are read
+// NOTHING here is a copy of the game's data: the instrument arrays are read
 // out of sfx.js, and the sequence is produced by running the REAL
-// updateMusic against a stub Sfx that records what it was asked to play.
-// The previous version hardcoded both, and silently went on reporting the
-// old one-instrument music after it had been replaced.
+// updateMusic against a stub Sfx that records what it was asked to play, so
+// a rewrite of the music cannot leave this silently reporting the old one.
 // usage: npm run music
 import fs from 'node:fs';
 const R = 'C:/dev/GitHub/JS13K/golf/';
 const sfxSrc = fs.readFileSync(R + 'game/sfx.js', 'utf8');
 
-// pull the GAME's generator out of sfx.js. It is the game's own now, not
-// the engine's, so this measures what actually plays.
+// pull the game's own generator out of sfx.js, so this measures what
+// actually plays
 const zzfxG = new Function('const PI=Math.PI; let audioDefaultSampleRate=44100;'
   + 'const sign=Math.sign, abs=Math.abs, clamp=(v,mn=0,mx=1)=>v<mn?mn:v>mx?mx:v;'
-  + sfxSrc.slice(sfxSrc.indexOf('const sfxGen'), sfxSrc.indexOf('// The engine'))
+  + sfxSrc.slice(sfxSrc.indexOf('const sfxGen'), sfxSrc.indexOf('class Sfx'))
   + '; return sfxGen;')();
 
 const SR = 44100;
@@ -56,6 +55,8 @@ const run = new Function('EV', 'STUB', 'TICK', 'CLOCK', `
     const mod=(a,b=1)=>((a%b)+b)%b;
     let frame = 0;
     class Sfx { constructor(){ return STUB(Sfx.n = (Sfx.n||0)+1); } }
+    const snd_bounce = STUB("snd_bounce"); // the hat: updateMusic plays the turf blip
+    const ST_TITLE = 0, ST_INTRO = 1; let state = ST_TITLE; // updateMusic reads the game state (title mix)
     ${musicSrc.replace(/const (snd_\w+)\s*=\s*MUSIC\s*&&\s*new Sfx\((\[[^\]]*\])\)/g,
         'const $1 = STUB("$1")')}
     for (let i = 0; i < TICK; ++i) { CLOCK.t = i; updateMusic(); frame += 8; }
