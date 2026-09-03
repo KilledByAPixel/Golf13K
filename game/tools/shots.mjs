@@ -99,6 +99,9 @@ try
 {
     // title
     await page.goto(BASE, { waitUntil: 'load' });
+    // the debug keys this walk presses (C, M, [ ], F) are gated behind
+    // CHEATS() since p285; it persists in localStorage across the navigations
+    await page.evaluate('CHEATS(1)');
     await sleep(1500);
     await shot('01-title');
 

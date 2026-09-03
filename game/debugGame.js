@@ -17,6 +17,11 @@
  *  ...plus the bot (botSwing), the practice tools (perfectSwing, puttDrop),
  *  the screenshot (saveShot), and the telemetry log.
  *
+ *  THE DEBUG KEYS ARE OFF BY DEFAULT. This build is PUBLIC as the "enhanced
+ *  version" on GitHub Pages, so every key below is gated on CHEATS(), a
+ *  console toggle held in localStorage['sg_cheats'] exactly like SKIP().
+ *  N (enhanced mode) and the gamepad are not cheats and stay live.
+ *
  *  LOAD ORDER: after game.js, before hud.js. Only hud.js runs anything at
  *  load time (engineInit at its bottom), so every const here is
  *  initialised before the game starts.
@@ -41,6 +46,9 @@ const THROW_V = 45; // yd/s the free cam's B key throws the ball at
 let autoPlay = 0, fastMode = 0, freeCam = 0, mapView = 0; // bot, fast-forward, fly cam, hole map
 let puttMode = 0;   // drop on the green and putt, over and over
 let showColl = 0;   // C: draw the collision volumes
+// CHEATS: the debug keys, off unless CHEATS() has been run in this browser.
+// Read once at load; CHEATS() flips both the flag and the stored copy.
+let cheatsOn = !!localStorage['sg_cheats'];
 
 ///////////////////////////////////////////////////////////////////////////////
 // ENHANCED MODE - the home for things the 13k build has no room for.
@@ -319,27 +327,27 @@ function devUpdate()
     // free cam opened the map but left freeCam set, so closing the map
     // dropped you back into a camera you thought you had left. Now M exits
     // the free cam and F exits the map, so leaving either lands in the game.
-    if (keyWasPressed('KeyM'))
+    if (cheatsOn && keyWasPressed('KeyM'))
     {
         mapView = !mapView;
         exitFreeCam();
         stateTime = 0; // the intro replays when the map closes
     }
-    const skip = (keyWasPressed('BracketRight')?1:0) - (keyWasPressed('BracketLeft')?1:0);
+    const skip = cheatsOn ? (keyWasPressed('BracketRight')?1:0) - (keyWasPressed('BracketLeft')?1:0) : 0;
     if (skip)
     {
         holeIndex = (holeIndex + 18 + skip)%18;
         startHole();
         puttMode && puttDrop(); // stay on the greens while hopping holes
     }
-    if (keyWasPressed('KeyF'))
+    if (cheatsOn && keyWasPressed('KeyF'))
     {
         mapView = 0; // F from the map flies instead of stacking
         freeCam ? exitFreeCam() : freeCam = 1;
     }
-    if (keyWasPressed('KeyC'))
+    if (cheatsOn && keyWasPressed('KeyC'))
         showColl = !showColl;
-    if (keyWasPressed('KeyG') && !freeCam) // (G is the free cam's pitch-down)
+    if (cheatsOn && keyWasPressed('KeyG') && !freeCam) // (G is the free cam's pitch-down)
         gridAid = !gridAid; // swap the landing ring for the slope grid
     if (keyWasPressed('KeyN'))
         enhanced = !enhanced; // ENHANCED MODE (gamepad, and whatever follows)
@@ -362,7 +370,7 @@ function devUpdate()
     // hole-out card advance on their own clocks while autoPlay is set. All
     // this adds is a toggle mid-round, and the save guard in saveGame.
     // NOT while the free cam is up, where T is the pitch control.
-    if (keyWasPressed('KeyT') && !freeCam)
+    if (cheatsOn && keyWasPressed('KeyT') && !freeCam)
     {
         autoPlay = !autoPlay;
         // pressed at the title there is no round to watch, so deal one. Safe
@@ -371,12 +379,12 @@ function devUpdate()
         if (autoPlay && state == ST_TITLE)
             startCourse(0);
     }
-    if (keyWasPressed('KeyK'))
+    if (cheatsOn && keyWasPressed('KeyK'))
         grabShot = 1; // screenshot, taken at the top of gameRenderPost
     // X = perfect swing, from the aim or from under a running meter
-    if (keyWasPressed('KeyX') && (state == ST_AIM || state == ST_SWING))
+    if (cheatsOn && keyWasPressed('KeyX') && (state == ST_AIM || state == ST_SWING))
         perfectSwing();
-    if (keyWasPressed('KeyR'))
+    if (cheatsOn && keyWasPressed('KeyR'))
     {
         // REMIX: re-roll this hole with a new seed. CLASSIC: replay the
         // hole exactly as it is, strokes back to zero - the classic 18
@@ -402,7 +410,7 @@ function devUpdate()
         savedGame = keep;
         keep ? localStorage['sg_save'] = keep : delete localStorage['sg_save'];
     }
-    if (keyWasPressed('KeyP') && (puttMode = !puttMode))
+    if (cheatsOn && keyWasPressed('KeyP') && (puttMode = !puttMode))
         puttDrop();
     if (mapView)
         return 1; // game input frozen under the map
@@ -557,6 +565,11 @@ function devInit()
     setDebugKey('Backquote'); // Esc is the game's back-to-title key
     console.log(`SUNSHINE GOLF CLASSIC - dev build
 
+  CHEATS ARE ${cheatsOn ? 'ON' : 'OFF - the keys below do nothing until CHEATS() is run here'}
+  CHEATS()      toggle the debug keys. Kept in localStorage like SKIP(), so
+                it survives reloads; CHEATS(1)/CHEATS(0) set it outright.
+                Off by default: this build is public as the enhanced version.
+
   R      REPLAY this hole, straight to the tee, strokes back to zero.
          CLASSIC changes nothing at all - same land, same pin, same wind -
          so the same shot can be hit twice and compared. REMIX rerolls the
@@ -641,7 +654,7 @@ function devInit()
         enterAim();
     }
     // free cam: come back to the saved hole and pose (press F to stop)
-    const savedCam = localStorage['sg_cam'];
+    const savedCam = cheatsOn && localStorage['sg_cam'];
     if (savedCam)
     {
         const [h, x, y, z, yaw, pitch] = savedCam.split(',').map(Number);
@@ -691,6 +704,12 @@ function devInit()
     {
         v ? localStorage['sg_skip'] = 1 : delete localStorage['sg_skip'];
         return v ? 'reload jumps into the game' : 'reload stops at the title';
+    };
+    window['CHEATS'] = (v = !cheatsOn)=>
+    {
+        cheatsOn = v;
+        v ? localStorage['sg_cheats'] = 1 : delete localStorage['sg_cheats'];
+        return v ? 'cheats on: debug keys live' : 'cheats off: debug keys ignored';
     };
     window['PREVIEW'] = (v)=> placeView = v; // harness: landing-preview cam on/off
     window['NICE'] = ()=> niceShot = 1; // harness: rainbow trail screenshot

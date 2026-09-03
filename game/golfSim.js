@@ -658,6 +658,10 @@ function ballUpdate()
             if (k < 0)
             {
                 ++bounces;
+                // and it SOUNDS like one: the turf blip at the impact speed
+                // (Frank, 2026-09-02 - it hit a face in silence). -k is the
+                // normal speed, near enough: the (1+P[0]) is at most 1.32
+                sfxBounce(g.s, -k);
                 ball.vx = (ball.vx + gx*k)*P[1];
                 ball.vy = (ball.vy - k)*P[1];
                 ball.vz = (ball.vz + gz*k)*P[1];
@@ -676,21 +680,22 @@ function ballUpdate()
             keep *= 1 + ballSpin*.7;
             if (g.s == SURF_GREEN && ballSpin < 0)
             {
-                // backspin sucks back - in intent. This runs BEFORE the keep
-                // multiply below, so what it really subtracts is 7*keep =
-                // 7*.45*.3 = .95yd/s, a foot of roll-back at most. MEASURED
-                // 2026-09-02 on a flat green: NO club ever finishes behind
-                // its landing spot with backspin (the run is +.8 for the SW
-                // to +2.8 for the driver). Moved AFTER the keep it would do
-                // what it says - measured there, the run for 1W / 7i / PW /
-                // SW at full power and a 10yd wedge chip:
+                // backspin sucks back: 3yd/s of draw against the shot, AFTER
+                // the keep below scrubs the landing speed - hence the /keep,
+                // since this line runs before that multiply. Until 2026-09-02
+                // it was a bare 7 here, which the keep then cut to 7*.135 =
+                // .95yd/s: a foot of roll-back, and MEASURED on a flat green
+                // no club ever finished behind its landing spot. What 3
+                // does, run after the carry for 1W / 7i / PW / SW at full
+                // power, and a 10yd wedge chip:
                 //   7   -5.2 / -6.0 / -7.1 / -8.1, chip -4.7   (far too much)
-                //   3     .1 /  -.6 / -1.4 / -2.2, chip -1.4
+                //   3     .1 /  -.6 / -1.4 / -2.2, chip -1.4   <- here
                 //   2    1.4 /   .7 /   .0 /  -.7, chip  -.7
-                // Frank's call: leave it, cut it for the bytes, or move it
-                // with a 2-3 in place of the 7.
-                ball.vx += Math.sin(shotDir)*ballSpin*7;
-                ball.vz += Math.cos(shotDir)*ballSpin*7;
+                // So a wedge draws back a yard or two and a driver just
+                // stops, which is the real thing. Green only: keep is never 0
+                // here (water's is, and water never reaches this line).
+                ball.vx += Math.sin(shotDir)*ballSpin*3/keep;
+                ball.vz += Math.cos(shotDir)*ballSpin*3/keep;
             }
             ballSpin *= .3;
         }

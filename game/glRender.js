@@ -958,14 +958,14 @@ function pushFlareGL()
 {
     const sun = skyDir(SUN_A, SUN_E), cp = Math.cos(camPitch);
     const fwd = vec3(Math.sin(camYaw)*cp, -Math.sin(camPitch), Math.cos(camYaw)*cp);
-    const k = clamp((fwd.x*sun.x + fwd.y*sun.y + fwd.z*sun.z - .4));
+    const k = clamp((fwd.x*sun.x + fwd.y*sun.y + fwd.z*sun.z - .5));
     if (!k) return;
 
     glEnableFog = 0;
     for(let i=9; i--;)
     {
         const t = i/20+.2-Math.sin(i**3)*.05, s = .04 + Math.sin(i*i)*.03;
-        pushSkyDisc(sun.scale(1-t).add(fwd.scale(t)).normalize(), s, hsl(k/2+i/5, 1, .3, k));
+        pushSkyDisc(sun.scale(1-t).add(fwd.scale(t)).normalize(), s, hsl(k/2+i/5, 1, .4, k));
     }
     glEnableFog = 1;
 }

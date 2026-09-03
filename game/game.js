@@ -547,7 +547,7 @@ function updateSwing()
         // still knows the difference.
         const err = launchBall(clubI, shotPower(meterPower), meterImpact, spinMode, aimYaw, lieMul());
         isPutt ? snd_putt.play(.4 + meterPower*.6)
-               : snd_tee.play(.5 + meterPower*.5, .8 + meterPower*.4);
+               : snd_tee.play(.4 + meterPower*.6, .8 + meterPower*.4);
         // THE VERDICT, and it rides entirely on the SECOND click. The three
         // names match the three bands launchBall produces: err snapped to 0,
         // under .06, and everything else. Power earns nothing on its own -
