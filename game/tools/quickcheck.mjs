@@ -21,7 +21,7 @@ page.on('console', m => { if (m.type() == 'error' && !m.text().includes('AudioCo
 const q = process.argv[2] || '';   // e.g. "&trees=2"
 await page.goto(`http://localhost:${PORT}/?hole=1${q}`, { waitUntil: 'load' });
 for (let t=0; t<40000; t+=250) {
-    if (await page.evaluate('typeof DBG == "function" && typeof H == "object" && !!H').catch(()=>0)) break;
+    if (await page.evaluate('typeof DBG == "function" && typeof hole == "object" && !!hole').catch(()=>0)) break;
     await new Promise(r => setTimeout(r, 250));
 }
 if (process.env.SETUP) await page.evaluate(process.env.SETUP);

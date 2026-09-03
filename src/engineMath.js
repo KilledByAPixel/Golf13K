@@ -398,7 +398,7 @@ class RandomGenerator
 {
     /** Create a random number generator with the seed passed in
      *  @param {number} [seed] - Starting seed or engine default seed */
-    constructor(seed = 123456789)
+    constructor(seed = 3e5)
     {
         /** @property {number} - random seed */
         this.seed = seed;

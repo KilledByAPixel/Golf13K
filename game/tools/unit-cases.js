@@ -87,14 +87,14 @@ eq(CLASSIC_HOLES.map((r, i)=> r[0] == 3 && r[5] == 1 ? i+1 : 0).filter(h => h).j
 forestMul = 1;
 genHole(1113, 0, CLASSIC_HOLES[0]);
 const kinds = [0,0,0];
-for (const t of H.trees) ++kinds[t.k];
+for (const t of hole.trees) ++kinds[t.k];
 eq(kinds[0] > 40, true, 'the hole keeps its framing trees (+ the near forest)');
 eq(kinds[1] > 200, true, 'a periphery forest exists');
 eq(kinds[2] > 15, true, 'bushes line the corridor');
-eq(H.trees.every(t => t.k != 1 || distToPath(t.x, t.z) > 75), true, 'forest trees stay off the playable corridor');
+eq(hole.trees.every(t => t.k != 1 || distToPath(t.x, t.z) > 75), true, 'forest trees stay off the playable corridor');
 forestMul = 0;
 genHole(1113, 0, CLASSIC_HOLES[0]);
-eq(H.trees.filter(t => t.k == 1).length, 0, 'forestMul 0 disables the forest');
+eq(hole.trees.filter(t => t.k == 1).length, 0, 'forestMul 0 disables the forest');
 forestMul = 1;
 
 // ---- the ball never goes under the height field (it used to tunnel into
@@ -103,7 +103,7 @@ genHole(1113, 12, CLASSIC_HOLES[12]); // hilly back-nine hole
 let under = 0;
 for (let i=0; i<24; ++i)
 {
-    ball.x = H.path[0].x; ball.z = H.path[0].z; ball.y = groundAt(ball.x, ball.z).h;
+    ball.x = hole.path[0].x; ball.z = hole.path[0].z; ball.y = groundAt(ball.x, ball.z).h;
     // i % CLUB_PUTTER = every club that flies, whatever the bag holds.
     // Was i%9, which meant "every club" until the 13 iron pushed the SW to 9
     // and quietly dropped it from the sweep.
@@ -133,7 +133,7 @@ eq(cHalf > cFull*.35 && cHalf < cFull*.65, true, 'powerFrac .5 lands near half t
 {
     genHole(1113, 0, CLASSIC_HOLES[0]);
     const realH = heightAt, realG = groundAt;
-    H.near = []; H.wind = {a: 0, s: 0};
+    hole.near = []; hole.wind = {a: 0, s: 0};
     for (const slope of [.3, .5, .8])
     {
         // a mound: rises for 30yd, then levels off
@@ -156,13 +156,13 @@ eq(cHalf > cFull*.35 && cHalf < cFull*.65, true, 'powerFrac .5 lands near half t
 {
     genHole(1113, 0, CLASSIC_HOLES[0]);
     const realH = heightAt, realG = groundAt;
-    H.near = []; H.wind = {a: 0, s: 0};
+    hole.near = []; hole.wind = {a: 0, s: 0};
     heightAt = ()=> 0;
     groundAt = ()=> ({h: 0, s: SURF_GREEN});
     // fly a ball through the pin's airspace, offset sideways by 'off'
     const clip = (off)=>
     {
-        ball.x = H.pin.x - 1; ball.z = H.pin.z + off; ball.y = 1.5;
+        ball.x = hole.pin.x - 1; ball.z = hole.pin.z + off; ball.y = 1.5;
         ball.vx = 25; ball.vy = ball.vz = 0;
         shotBegin(1, 0); // NOT by hand: this is what clears the pin latch
         let minVx = 25;
@@ -185,7 +185,7 @@ eq(cHalf > cFull*.35 && cHalf < cFull*.65, true, 'powerFrac .5 lands near half t
     // throw. Counted here as sign flips in vx, which needs no sound hook.
     const strikes = (sp)=>
     {
-        ball.x = H.pin.x - 3; ball.z = H.pin.z; ball.y = 1;
+        ball.x = hole.pin.x - 3; ball.z = hole.pin.z; ball.y = 1;
         ball.vx = sp; ball.vy = ball.vz = 0;
         shotBegin(1);
         let hits = 0, last = sp;
@@ -201,7 +201,7 @@ eq(cHalf > cFull*.35 && cHalf < cFull*.65, true, 'powerFrac .5 lands near half t
     for (const sp of [15, 25, 40, 60])
         eq(strikes(sp) < 2, true, `the pin is struck at most once per shot at ${sp}yd/s`);
     // a ball dropping INTO the cup must still drop, stick or no stick
-    ball.x = H.pin.x; ball.z = H.pin.z - 5; ball.y = 0;
+    ball.x = hole.pin.x; ball.z = hole.pin.z - 5; ball.y = 0;
     launchPutt(5, 0);
     for (let n = 0; n < 3000 && !ballEvent; ++n) ballUpdate();
     eq(ballEvent, EV_HOLED, 'a putt still drops with the pin in');
@@ -224,15 +224,26 @@ meterStart();
 let mev = '';
 for (let i=0; i<300 && !mev; ++i) mev = meterUpdate(0, 0);
 eq(mev, MET_CANCEL, 'a full rise and fall without a click cancels the swing');
+// A PUTT TAKES THE SAME THREE CLICKS (2026-09-01). It used to swing on the
+// power click alone; now the second click aims it, so meterUpdate has no
+// putt case left at all and this pins that it did not creep back in.
 meterStart();
-for (let i=0; i<30; ++i) meterUpdate(0, 1);
-eq(meterUpdate(1, 1), MET_SWING, 'a putt swings on the power click alone');
+for (let i=0; i<30; ++i) meterUpdate(0);
+eq(meterUpdate(1), MET_POWER, 'a putt takes the power click, not the swing');
+eq(meterPhase, 2, 'and goes on to the accuracy sweep like every other club');
+for (let i=0; i<300 && meterPhase == 2; ++i) meterUpdate(0);
+eq(meterImpact.toFixed(3), (-METER_OVER).toFixed(3), 'a putt sweep run out is maximally late');
 meterPhase = 0;
 
 // ---- meshHeightAt: props sit on the DRAWN terrain (the coarse periphery
 // cells cut chords through the analytic hills - far trees floated) ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 buildGrid();
+// pushTerrain fills meshH off its own per-vertex groundAt (it shares that
+// call with groundColor), and it needs a GL context we do not have here - so
+// fill the grid the same way it does. What is under test is meshHeightAt's
+// interpolation of the grid, not who wrote it.
+meshH = meshZs.map(z => meshXs.map(x => groundAt(x, z).h));
 eq(meshHeightAt(meshXs[3], meshZs[5]), meshH[5][3], 'a grid vertex returns its own height');
 const cx = (meshXs[3]+meshXs[4])/2, cz = (meshZs[5]+meshZs[6])/2;
 eq(Math.abs(meshHeightAt(cx, cz) - (meshH[5][3]+meshH[6][4])/2) < 1e-9, true,
@@ -245,7 +256,7 @@ eq(Math.abs(meshHeightAt(cx, meshZs[5]) - (meshH[5][3]+meshH[5][4])/2) < 1e-9, t
 genHole(1113, 0, CLASSIC_HOLES[0]);
 const shot = (near)=>
 {
-    H.near = near;
+    hole.near = near;
     ball.x = ball.z = 0; ball.y = groundAt(0, 0).h;
     treeHit = 0;
     launchBall(0, 1, 0, 0, 0, 1);            // driver, dead straight down z
@@ -273,11 +284,11 @@ eq(shot([prop(30, 2, 2)]) > 200, true, 'a driver flies clean over a bush 30yd ou
 // trunk (z 10, 11 against a trunk at 10.5): position-testing misses by
 // .5yd on both sides, sweeping cannot miss. ----
 {
-    const realH = heightAt, realG = groundAt, realNear = H.near, realWind = H.wind;
+    const realH = heightAt, realG = groundAt, realNear = hole.near, realWind = hole.wind;
     heightAt = ()=> 0; groundAt = ()=> ({h: 0, s: SURF_FAIRWAY});
-    H.wind = {a: 0, s: 0};
+    hole.wind = {a: 0, s: 0};
     // canopy centre 5yd up: a ball at y~1 is in trunk territory (dy < 0)
-    H.near = [{x: 0, z: 10.5, s: 1, k: 0, y: 5}];
+    hole.near = [{x: 0, z: 10.5, s: 1, k: 0, y: 5}];
     ball.x = 0; ball.z = 0; ball.y = 1;
     ball.vx = 0; ball.vz = 60; ball.vy = 0;
     shotBegin(1, 0);
@@ -290,7 +301,7 @@ eq(shot([prop(30, 2, 2)]) > 200, true, 'a driver flies clean over a bush 30yd ou
     eq(minVz < 0, true, 'a liner through a thin trunk is stopped, not tunnelled');
     eq(ball.z < 10.6, true, 'and rolled back to the impact point, not left past the tree');
     ballEvent = 0; ballAir = ballRolling = 0;
-    heightAt = realH; groundAt = realG; H.near = realNear; H.wind = realWind;
+    heightAt = realH; groundAt = realG; hole.near = realNear; hole.wind = realWind;
 }
 
 // ---- resting rule: the ball only comes to rest where friction can hold it
@@ -310,7 +321,7 @@ heightAt = realHeight;
 
 // ---- the landing prediction shares flyStep: predicting a flight into a
 // tree must NOT flag a hit (it played the tree sound 60x a second in aim) ----
-H.near = [{x: 0, z: 30, s: 2.5, k: 0, y: groundAt(0, 30).h}];
+hole.near = [{x: 0, z: 30, s: 2.5, k: 0, y: groundAt(0, 30).h}];
 ball.x = ball.z = 0; ball.y = groundAt(0, 0).h; treeHit = 0;
 const pTree = predictLanding(0, 0, 0, 1);
 eq(treeHit, 0, 'predicting a flight into a tree does not flag a hit');
@@ -354,10 +365,10 @@ eq(Math.hypot(pTree.x, pTree.z) > 100, true, 'and it flies straight past: the ri
 // which is the signature of a full deliberate re-roll - Frank tuned the
 // re-rolled course by playing it, so these values are the new baseline. ----
 genHole(1113, 0, [4, .85, 34, 0, 1, 0, .5, .3]);
-eq(H.bunkers[0].x.toFixed(3) + ',' + H.bunkers[0].z.toFixed(3), '5.391,324.790', 'the draw order still puts bunker 0 where it always was');
-eq(H.trees[5].x.toFixed(3) + ',' + H.trees[5].z.toFixed(3), '-45.463,129.655', 'and tree 5 where it always was');
+eq(hole.bunkers[0].x.toFixed(3) + ',' + hole.bunkers[0].z.toFixed(3), '5.391,324.790', 'the draw order still puts bunker 0 where it always was');
+eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '-45.463,129.655', 'and tree 5 where it always was');
 genHole(1113, 12, [4, 1.05, 22, 1, 3, .3, 1.2, 1]);
-eq(H.trees[5].x.toFixed(3) + ',' + H.trees[5].z.toFixed(3), '50.009,322.853', 'a dogleg hole with water and hills too');
+eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '50.009,322.853', 'a dogleg hole with water and hills too');
 
 // pathPointAt itself, because the fingerprints above did NOT catch it
 // breaking: a backward rewrite made every call return from the final path
@@ -365,13 +376,13 @@ eq(H.trees[5].x.toFixed(3) + ',' + H.trees[5].z.toFixed(3), '50.009,322.853', 'a
 // way. Its neighbours moved by up to 232yd. A prop fingerprint is a sample,
 // not a contract - so pin the contract.
 genHole(1113, 12, [4, 1.05, 22, 1, 3, .3, 1.2, 1]);
-const P0 = H.path[0], P1 = H.path[1], mid = pathPointAt(P1.cum/2);
-eq(H.path.length, 3, 'the dogleg has two segments to get wrong');
+const P0 = hole.path[0], P1 = hole.path[1], mid = pathPointAt(P1.cum/2);
+eq(hole.path.length, 3, 'the dogleg has two segments to get wrong');
 eq(pathPointAt(0).z, P0.z, 'd 0 is the tee, not the bend');
 eq(Math.hypot(mid.x - P1.x/2, mid.z - P1.z/2) < 1e-9, true, 'a point in the FIRST segment interpolates within it');
-eq(pathPointAt(H.len).z.toFixed(3), H.green.z.toFixed(3), 'd = len is the green');
+eq(pathPointAt(hole.len).z.toFixed(3), hole.green.z.toFixed(3), 'd = len is the green');
 eq(pathPointAt(-50).z, P0.z, 'behind the tee clamps to the tee');
-eq(pathPointAt(H.len*2).z.toFixed(3), H.green.z.toFixed(3), 'past the green clamps to the green');
+eq(pathPointAt(hole.len*2).z.toFixed(3), hole.green.z.toFixed(3), 'past the green clamps to the green');
 // ---- wind: calm holes and windy holes, within the HUD's range. Rolled per
 // PLAY from Math.random (seeded in unit.mjs), not from the hole's seed ----
 // NEVER ZERO: the arrow always points somewhere, so a reading of 0 reads as
@@ -381,8 +392,8 @@ let lo = 99, hi = 0;
 for (let h=0; h<18; ++h)
 {
     genHole(1113, h, CLASSIC_HOLES[h]);
-    eq(H.wind.s >= 1 && H.wind.s <= 21, true, 'hole ' + (h+1) + ' wind is within 1..21');
-    lo = Math.min(lo, H.wind.s); hi = Math.max(hi, H.wind.s);
+    eq(hole.wind.s >= 1 && hole.wind.s <= 21, true, 'hole ' + (h+1) + ' wind is within 1..21');
+    lo = Math.min(lo, hole.wind.s); hi = Math.max(hi, hole.wind.s);
 }
 eq(hi - lo > 4, true, 'a round carries a real spread of wind, not one flat value');
 eq(hi > 6, true, 'and at least one hole is genuinely windy');
@@ -393,32 +404,51 @@ eq(hi > 6, true, 'and at least one hole is genuinely windy');
 for (let h=0; h<18; ++h)
 {
     genHole(1113, h, CLASSIC_HOLES[h]);
-    const ok = isFinite(heightAt(0, 0) + heightAt(H.green.x, H.green.z) + H.greenH)
-        && H.bunkers.every(b => isFinite(b.x + b.z + b.rx + b.rz));
+    const ok = isFinite(heightAt(0, 0) + heightAt(hole.green.x, hole.green.z) + hole.greenH)
+        && hole.bunkers.every(b => isFinite(b.x + b.z + b.rx + b.rz));
     eq(ok, true, 'hole ' + (h+1) + ' has finite terrain and bunkers');
 }
 
-// ---- wind has to BITE, and reading it is the PLAYER's job. Until
-// 2026-08-30 solveAim quietly corrected the default aim for drift and
-// elevation; now the ring marks where you aimed, so this miss is the
-// feature rather than a bug (Frank: "I'd rather the player would have to").
-// The pair matters: the shot misses in wind and does NOT miss in calm, so
-// the drift is the wind and not a broken prediction. ----
+// ---- WIND BITES, AND THE PREVIEW IS BLIND TO IT. Those are two halves of
+// one design decision, and this pins both: the wind has to move the real
+// ball by yards, and the aim preview must NOT follow it there, because
+// reading the wind is the player's job (Frank, 2026-08-30: "I'd rather the
+// player would have to"). Before 2026-09-01 this case tested the preview
+// FOR drift, since predictLanding then fed only the debug arc; now it is
+// what draws the ring and the shot arc, so it flies still air on purpose
+// and the pair below is what stops either half drifting back. ----
 genHole(1113, 15, CLASSIC_HOLES[15]);           // hole 16: island green
 // Wind is rolled per PLAY, so this case pins its own rather than hoping the
 // hole rolls windy.
 ball.x = ball.z = 0; ball.y = groundAt(0, 0).h;
 const c16 = autoClub(), max16 = CLUBS[c16][1];
-const atPin = ()=> predictLanding(c16, Math.atan2(H.pin.x, H.pin.z), 0, 1, ballToPin()/max16);
-H.wind = {a: 1, s: 8};
-const windy = atPin();
-eq(Math.hypot(windy.x-H.pin.x, windy.z-H.pin.z) > 3, true, 'aiming straight at the pin misses by yards in the wind');
-H.wind = {a: 1, s: 1};
-const calm = atPin();
-// vs the SAME aim in calm, not vs the pin: this hole's green is well above
-// the tee, so the straight aim falls short whatever the wind does. Comparing
-// the two isolates the wind, which is the thing the player has to read.
-eq(Math.hypot(windy.x-calm.x, windy.z-calm.z) > 3, true, 'and the wind alone is what moved it');
+const aim16 = Math.atan2(hole.pin.x, hole.pin.z), pow16 = ballToPin()/max16;
+hole.near = [];  // trees would stop the ball before the wind could show
+// the REAL shot, flown to rest (or to the water this hole is ringed with)
+const flyReal = ()=>
+{
+    ball.x = ball.z = 0; ball.y = groundAt(0, 0).h;
+    ballEvent = 0;
+    launchBall(c16, pow16, 0, 0, aim16, 1);
+    for (let n=0; n<900 && !ballEvent; ++n) ballUpdate();
+    ballEvent = 0;
+    return {x: ball.x, z: ball.z};
+};
+// back to the tee first: predictLanding starts from wherever the ball IS,
+// and flyReal has just left it downrange
+const preview = ()=>
+{
+    ball.x = ball.z = 0; ball.y = groundAt(0, 0).h;
+    return predictLanding(c16, aim16, 0, 1, pow16);
+};
+hole.wind = {a: 1, s: 8};
+const windyReal = flyReal(), windyPred = preview();
+hole.wind = {a: 1, s: 1};
+const calmReal = flyReal(), calmPred = preview();
+eq(Math.hypot(windyReal.x-calmReal.x, windyReal.z-calmReal.z) > 3, true,
+    'the wind moves the real ball by yards');
+eq(Math.hypot(windyPred.x-calmPred.x, windyPred.z-calmPred.z) < 1e-9, true,
+    'and the aim preview does not follow it - still air, always');
 
 // ---- launchPutt takes YARDS, so the meter is linear in distance: half a
 // meter rolls half as far. It used to take a speed fraction, and roll goes
@@ -455,31 +485,168 @@ eq(rg > .5, true, 'but a rough putt still moves');
 for (const surf of [SURF_GREEN, SURF_FAIRWAY, SURF_ROUGH, SURF_BUNKER])
     eq(puttRoll(surf, 20) < 21, true, 'a putt never outruns its asked distance on surface ' + surf);
 
+// ---- PUTTING IS THE SAME SYSTEM AS EVERY OTHER CLUB (2026-09-01). It
+// shares predictLanding, so it shares the ring, the chip yardage, the target
+// cam and the meter scale; what makes it a putt is only that predictLanding
+// ROLLS it instead of flying it. These pin the parts the rest of the game
+// now leans on. ----
+genHole(1113, 0, CLASSIC_HOLES[0]);
+// ON A FLAT SYNTHETIC GREEN, not hole 1's real one. These pin the PUTT
+// CONTRACT - that the bar's top is a target in yards and the roll delivers it
+// - so the terrain under the ball must not be part of the measurement.
+// They used to run on the real hole 1 and broke the moment Frank gave it a
+// dogleg (706cb65): the pin moved 30yd across, which put a BUNKER directly
+// behind the green, so "10yd short of the pin" was sand and the ball rolled
+// 2.6yd of an asked 10. Correct physics, invalid assumption. Worse, "half the
+// bar rolls half as far" had gone VACUOUS - both rolls were near zero, so the
+// difference was under the 2yd tolerance for the wrong reason.
+// The two blocks below already stub for exactly this, and say why.
+const realGroundP = groundAt, realHeightP = heightAt;
+groundAt = ()=> ({h: 0, s: SURF_GREEN});
+heightAt = ()=> 0;
+// on the green, a few yards below the cup, putting straight at it
+const puttFrom = (out, power)=>
+{
+    ball.x = hole.pin.x; ball.z = hole.pin.z - out;
+    ball.y = groundAt(ball.x, ball.z).h;
+    const p = predictLanding(CLUB_PUTTER, Math.atan2(hole.pin.x-ball.x, hole.pin.z-ball.z),
+        0, 1, power);
+    return {stop: Math.hypot(p.x-ball.x, p.z-ball.z), p};
+};
+// the bar's top is a TARGET in yards, and a putt delivers it (a shade over,
+// which is the pace you want - a putt dying at the cup never drops)
+for (const yd of [6, 10, 16])
+{
+    const r = puttFrom(yd, yd/PUTT_MAX);
+    eq(r.stop > yd && r.stop < yd + 1.5, true,
+        `a ${yd}yd putt target rolls ${yd}yd and a touch past, not ` + r.stop.toFixed(1));
+}
+// half the bar is half the roll - the same linearity launchPutt has, which
+// is what lets the meter be read as yards
+{
+    const f = puttFrom(20, 20/PUTT_MAX).stop, h = puttFrom(20, 10/PUTT_MAX).stop;
+    eq(Math.abs(h - f/2) < 2, true, 'half the putt bar rolls half as far');
+}
+// THE PATH ENDS ON THE STOP POINT. The ring is drawn at the returned point
+// and the dashed line is drawn along predPath, so if these ever part company
+// the line stops beside the ring instead of running into it.
+{
+    const r = puttFrom(12, 12/PUTT_MAX);
+    const end = predPath[predPath.length-1];
+    eq(Math.hypot(end.x-r.p.x, end.z-r.p.z) < 1e-9, true,
+        'the putt line ends exactly on the ring');
+    eq(Math.abs(end.y - groundAt(end.x, end.z).h) < 1e-9, true, 'and on the ground');
+    eq(predPath.length > 8, true, 'and has enough points to read as a line');
+}
+groundAt = realGroundP; heightAt = realHeightP;
+// THE DEFAULT PUTT TARGET MUST OVERSHOOT THE CUP. resetTarget aims the bar
+// PUTT_OVER past the hole, and that is not a nicety: with the bar topping
+// out AT the cup, every stroke that is not perfect at the very top of the
+// meter falls short, so the hole is unreachable in practice. This pins that
+// the cup lands strictly INSIDE the bar (which is also the condition under
+// which renderMeter draws its marker at all) with real room past it.
+// On a FLAT SYNTHETIC GREEN, so this measures the target rule and not hole
+// 1's green happening to end before 20yd - a putt from the rough beyond it
+// barely rolls, which is honest physics but a different test.
+{
+    const realGround = groundAt, realHeight = heightAt;
+    groundAt = ()=> ({h: 0, s: SURF_GREEN});
+    heightAt = ()=> 0;
+    for (const yd of [4, 8, 12, 20, 30])
+    {
+        ball.x = hole.pin.x; ball.z = hole.pin.z - yd;
+        ball.y = 0;
+        // resetTarget's putter rule, through setTarget's 5yd floor and PUTT_MAX
+        const target = Math.min(Math.max(ballToPin()*PUTT_OVER, 5), PUTT_MAX);
+        const p = predictLanding(CLUB_PUTTER, Math.atan2(hole.pin.x-ball.x, hole.pin.z-ball.z),
+            0, 1, target/PUTT_MAX);
+        const cup = ballToPin()/Math.hypot(p.x-ball.x, p.z-ball.z);
+        eq(cup < .95 && cup > .4, true,
+            `a ${yd}yd putt puts the cup at ` + (cup*100).toFixed(0) + '% of the bar, inside it with room');
+    }
+    groundAt = realGround; heightAt = realHeight;
+}
+eq(PUTT_OVER > 1, true, 'the putt bar always reaches past the hole');
+
+// THE SECOND CLICK HAS TO BITE ON A PUTT. Since 2026-09-01 a putt takes the
+// same three clicks as everything else, and push/pull is an ANGLE: the .05
+// the rest of the bag uses is ten yards of miss on a drive and two
+// CENTIMETRES on a ten yard putt, so the shared value left the new accuracy
+// phase completely inert - MEASURED, every error at every distance still
+// dropped. PUTT_PUSH is the putter's own coefficient; this pins that it
+// bites, and that it stays kind to the short ones.
+{
+    const realGround = groundAt, realHeight = heightAt;
+    groundAt = ()=> ({h: 0, s: SURF_GREEN});    // the METER, not the terrain
+    heightAt = ()=> 0;
+    // struck at the pace that stops it AT the cup, which is how it is played
+    const puttAt = (out, impact)=>
+    {
+        ball.x = hole.pin.x; ball.z = hole.pin.z - out; ball.y = 0;
+        ball.vx = ball.vy = ball.vz = 0;
+        ballEvent = 0;
+        launchBall(CLUB_PUTTER, ballToPin()/PUTT_MAX, impact, 0,
+            Math.atan2(hole.pin.x-ball.x, hole.pin.z-ball.z), 1);
+        for (let i=0; i<900 && !ballEvent; ++i) ballUpdate();
+        const holed = ballEvent == EV_HOLED;
+        ballEvent = 0;
+        return holed;
+    };
+    // the curve, short to long: tap-ins survive anything, mid putts want a
+    // good stroke, long putts want a near-perfect one. Nothing unmakeable.
+    eq(puttAt(2, .12), true, 'a tap-in drops even off a bad stroke');
+    eq(puttAt(6, .05), true, 'a GOOD stroke drops a 6yd putt');
+    eq(puttAt(6, .12), false, 'a bad one misses from the same 6yd');
+    eq(puttAt(16, 0), true, 'a perfectly struck 16yd putt drops');
+    eq(puttAt(16, .05), false, 'a merely GOOD one does not - long putts want the strike');
+    groundAt = realGround; heightAt = realHeight;
+}
+
+// A PUTT PREDICTION SIMULATES THE LIE. This is what replaced the friction
+// ratio the HUD used to scale its estimate by: ask the same target from the
+// rough and the ball simply does not get there, and the chip now says so.
+// Both halves run on the same FLAT SYNTHETIC ground so the only difference
+// between them is the surface: the real hole 1 has a bunker behind the green
+// (see the putt-contract block above), which made the on-green baseline a
+// sand shot and the comparison meaningless.
+{
+    const realGround = groundAt, realHeight = heightAt;
+    heightAt = ()=> 0;
+    groundAt = ()=> ({h: 0, s: SURF_GREEN});
+    const onGreen = puttFrom(15, 15/PUTT_MAX).stop;
+    ball.x = hole.pin.x; ball.z = hole.pin.z - 15;
+    groundAt = ()=> ({h: 0, s: SURF_ROUGH});
+    const inRough = puttFrom(15, 15/PUTT_MAX).stop;
+    groundAt = realGround; heightAt = realHeight;
+    eq(inRough < onGreen/2, true,
+        'the same putt target from rough predicts less than half the roll');
+}
+
 // ---- hideTrees: props close to the ball leave BOTH the picture and the
 // collision set (a hidden tree used to still block the ball), and the set
 // is rebuilt from scratch each shot so they come back.
-// H.near is everything the ball can hit: the EVEN kinds, trees (k=0) and
+// hole.near is everything the ball can hit: the EVEN kinds, trees (k=0) and
 // bushes (k=2). The odd kinds are scenery - k=1 the far forest, k=3 the
 // wildflowers. A bush is a low tree; a flower is a lower one. ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 const hittable = (t)=> !(t.k & 1);
-const allNear = H.trees.filter(hittable).length;
-const victim = H.trees.find(hittable);
+const allNear = hole.trees.filter(hittable).length;
+const victim = hole.trees.find(hittable);
 ball.x = victim.x + 4; ball.z = victim.z; ball.y = 0;
 hideTrees();
-eq(H.near.includes(victim), false, 'a tree beside the ball is dropped from H.near');
-eq(H.near.every(t => Math.hypot(t.x-ball.x, t.z-ball.z) > 18), true, 'nothing within HIDE_R survives');
-eq(H.near.length < allNear, true, 'and the set really shrank');
+eq(hole.near.includes(victim), false, 'a tree beside the ball is dropped from hole.near');
+eq(hole.near.every(t => Math.hypot(t.x-ball.x, t.z-ball.z) > 18), true, 'nothing within HIDE_R survives');
+eq(hole.near.length < allNear, true, 'and the set really shrank');
 ball.x = victim.x + 500; ball.z = victim.z + 500;
 hideTrees();
-eq(H.near.length, allNear, 'moving the ball away restores every near tree');
+eq(hole.near.length, allNear, 'moving the ball away restores every near tree');
 // Wildflowers are scenery and must NEVER be collidable: they are scattered
 // through the rough, where the ball actually lands, so a collidable one
 // would be an invisible wall in play (bushes moved difficulty +2.2 when
 // they gained collision, and they are far bigger and far fewer).
-const flowers = H.trees.filter(t => t.k == 3);
+const flowers = hole.trees.filter(t => t.k == 3);
 eq(flowers.length > 0, true, 'hole 1 scatters wildflowers');
-eq(H.near.some(t => t.k == 3), false, 'no wildflower is ever in the collision set');
+eq(hole.near.some(t => t.k == 3), false, 'no wildflower is ever in the collision set');
 eq(flowers.every(t => t.s < .4), true, 'and they stay small enough to read as flowers');
 
 // ---- SPIN HOLDS THE CARRY AND TRADES THE ROLL. All three land in much the
@@ -489,10 +656,10 @@ eq(flowers.every(t => t.s < .4), true, 'and they stay small enough to read as fl
 // mechanism working rather than a coincidence to be tolerated. Backspin
 // used to fly 13.6% further than no spin, which made it a free upgrade ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
-H.wind.s = 0;
+hole.wind.s = 0;
 {
-    const realNear = H.near, realGround = groundAt, realHeight = heightAt;
-    H.near = [];                                  // flat fairway, no trees
+    const realNear = hole.near, realGround = groundAt, realHeight = heightAt;
+    hole.near = [];                                  // flat fairway, no trees
     groundAt = ()=> ({h: 0, s: SURF_FAIRWAY});
     heightAt = ()=> 0;
     const shot = (spin)=>
@@ -514,7 +681,7 @@ H.wind.s = 0;
         return {carry, apex, total: ball.z, run: ball.z - carry};
     };
     const back = shot(-1), flat = shot(0), top = shot(1);
-    H.near = realNear; groundAt = realGround; heightAt = realHeight;
+    hole.near = realNear; groundAt = realGround; heightAt = realHeight;
     // BACKSPIN lands where a normal shot lands - the loft change holds the
     // carry on its own. TOPSPIN gives carry up on purpose (a 6% power cut in
     // launchBall) so that its roll is bought rather than handed to it.
@@ -544,9 +711,9 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
 {
     const realGround = groundAt;
     groundAt = ()=> ({h: 0, s: SURF_FAIRWAY});
-    ball.x = H.pin.x + 23; ball.z = H.pin.z; ball.y = 0;
+    ball.x = hole.pin.x + 23; ball.z = hole.pin.z; ball.y = 0;
     eq(autoClub() != CLUB_PUTTER, true, 'a 23yd shot from the fairway is not a putt (the putter only reaches 20)');
-    ball.x = H.pin.x + 12;
+    ball.x = hole.pin.x + 12;
     eq(autoClub(), CLUB_PUTTER, 'but a 12yd bump-and-run still is');
     groundAt = realGround;
 }
@@ -556,13 +723,13 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
 // speed and drops it back, so the bot creeped 0.2yd a stroke to the mercy
 // cap. Only a ball moving INTO a tree is stopped now ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
-H.wind.s = 0;
+hole.wind.s = 0;
 {
     const realGround = groundAt, realHeight = heightAt;
     groundAt = ()=> ({h: 0, s: SURF_FAIRWAY});
     heightAt = ()=> 0;
     const tree = {x: 0, z: 0, s: 2.64, k: 0, y: 0};
-    H.near = [tree];
+    hole.near = [tree];
     ball.x = ball.z = ball.y = 0;              // dead inside the trunk
     // CLUB_PUTTER-1 is the SW: an index that survives a club being added
     // to the bag, which 8 did not - the 13 iron shifted it to the PW and
@@ -594,19 +761,19 @@ H.wind.s = 0;
 // cup was wide enough to catch it anyway, which hid the confound. ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 {
-    const realGround = groundAt, realHeight = heightAt, realNear = H.near;
+    const realGround = groundAt, realHeight = heightAt, realNear = hole.near;
     groundAt = ()=> ({h: 0, s: SURF_GREEN});
     heightAt = ()=> 0;
-    H.near = [];
+    hole.near = [];
     const realPinOut = pinOut;
     pinOut = 1;
-    ball.x = H.pin.x; ball.z = H.pin.z - .3; ball.y = .5;
+    ball.x = hole.pin.x; ball.z = hole.pin.z - .3; ball.y = .5;
     ball.vx = 0; ball.vy = -10; ball.vz = 10;   // dropping onto the cup, fast
     ballAir = 1; ballRolling = 0; bounces = 0; ballEvent = 0;
     for (let i=0; i<120 && !ballEvent; ++i) ballUpdate();
     const ev = ballEvent;
     ballEvent = 0; ballAir = ballRolling = 0;
-    groundAt = realGround; heightAt = realHeight; H.near = realNear;
+    groundAt = realGround; heightAt = realHeight; hole.near = realNear;
     pinOut = realPinOut;
     eq(ev, EV_HOLED, 'a fast ball landing in the cup is holed (a hole in one can happen)');
 }
@@ -616,26 +783,26 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
 // over the same spot would not ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 {
-    const realGround = groundAt, realHeight = heightAt, realNear = H.near;
+    const realGround = groundAt, realHeight = heightAt, realNear = hole.near;
     groundAt = ()=> ({h: 0, s: SURF_GREEN});
     heightAt = ()=> 0;
-    H.near = [];
+    hole.near = [];
     const rim = (HOLE_R + AIR_HOLE)/2;      // outside the rolling cup, inside the air one
     // dropping onto the rim: in
-    ball.x = H.pin.x + rim; ball.z = H.pin.z; ball.y = .5;
+    ball.x = hole.pin.x + rim; ball.z = hole.pin.z; ball.y = .5;
     ball.vx = 0; ball.vy = -10; ball.vz = 0;
     ballAir = 1; ballRolling = 0; bounces = 0; ballEvent = 0;
     for (let i=0; i<120 && !ballEvent; ++i) ballUpdate();
     const air = ballEvent;
     // rolling gently across the same spot: not in
     ballEvent = 0; ballAir = 0;
-    ball.x = H.pin.x + rim; ball.z = H.pin.z - 2; ball.y = 0;
+    ball.x = hole.pin.x + rim; ball.z = hole.pin.z - 2; ball.y = 0;
     ball.vx = 0; ball.vy = 0; ball.vz = 2;
     ballRolling = 1;
     for (let i=0; i<120 && !ballEvent; ++i) ballUpdate();
     const roll = ballEvent;
     ballEvent = 0; ballAir = ballRolling = 0;
-    groundAt = realGround; heightAt = realHeight; H.near = realNear;
+    groundAt = realGround; heightAt = realHeight; hole.near = realNear;
     eq(air, EV_HOLED, 'a ball dropping onto the rim is holed');
     eq(roll, EV_STOPPED, 'the same spot rolled over is not');
 }
@@ -646,14 +813,14 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
 // the ring stuck to the ball ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 {
-    const realGround = groundAt, realHeight = heightAt, realNear = H.near;
+    const realGround = groundAt, realHeight = heightAt, realNear = hole.near;
     groundAt = ()=> ({h: -.5, s: SURF_BUNKER});   // a scooped bunker at height 0
     heightAt = ()=> 0;
-    H.near = [];
-    H.wind.s = 0;
+    hole.near = [];
+    hole.wind.s = 0;
     ball.x = ball.z = 0; ball.y = -.5;
     const p = predictLanding(8, 0, 0, SURF_PHYS[SURF_BUNKER][3]);
-    groundAt = realGround; heightAt = realHeight; H.near = realNear;
+    groundAt = realGround; heightAt = realHeight; hole.near = realNear;
     eq(Math.hypot(p.x-ball.x, p.z-ball.z) > 20, true, 'a sand shot is predicted to fly, not to land on the ball');
 }
 
@@ -662,7 +829,7 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
 // step is over half a yard at landing speed, so the ring snapped whenever
 // the step count changed ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
-H.wind.s = 0;
+hole.wind.s = 0;
 ball.x = ball.z = 0; ball.y = groundAt(0, 0).h;
 {
     // .003 rad is the aim's real turn rate, so this is what the eye sees
@@ -860,8 +1027,8 @@ eq(powersWithNoPerfect, 0, 'from every power, not just lucky ones');
 // first-bounce spin bite like any other. ----
 genHole(1113, 0, CLASSIC_HOLES[0]);
 {
-    const realH = heightAt, realG = groundAt, realNear = H.near, realWind = H.wind;
-    H.near = []; H.wind = {a: 0, s: 0};
+    const realH = heightAt, realG = groundAt, realNear = hole.near, realWind = hole.wind;
+    hole.near = []; hole.wind = {a: 0, s: 0};
     // faceZ 0 = flat everywhere; else a 60% face rising 30yd from z = faceZ
     const drive = (faceZ)=>
     {
@@ -883,7 +1050,7 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
     };
     const flat = drive(0);
     const hill = drive(flat.contact - 25);      // steep face 25yd short of the carry
-    heightAt = realH; groundAt = realG; H.near = realNear; H.wind = realWind;
+    heightAt = realH; groundAt = realG; hole.near = realNear; hole.wind = realWind;
     eq(hill.total < flat.total, true,
         'a topspin drive into a hill face finishes short of the same drive on flat ground');
     eq(hill.pop < flat.pop + 3, true,

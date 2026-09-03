@@ -114,6 +114,7 @@ const sourceFiles =
     'view3d.js',
     'sfx.js',
     'game.js',
+    'debugGame.js',
     'hud.js',
 ];
 const dataFiles =

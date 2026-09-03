@@ -41,10 +41,10 @@ let total=0, totalPar=0, stats={fairwayHits:0, girs:0, putts:0, water:0, ob:0, m
 for (let hi=0; hi<18; ++hi)
 {
     genHole(${seedArg}, hi, rows[hi]);
-    ball.x=H.path[0].x; ball.z=H.path[0].z; ball.y=groundAt(ball.x,ball.z).h;
+    ball.x=hole.path[0].x; ball.z=hole.path[0].z; ball.y=groundAt(ball.x,ball.z).h;
     ball.vx=ball.vy=ball.vz=0;
     let strokes=0, putts=0, log=[];
-    for (let shot=0; shot<15 && strokes < H.par+5; ++shot)
+    for (let shot=0; shot<15 && strokes < hole.par+5; ++shot)
     {
         const d = ballToPin();
         const g = groundAt(ball.x, ball.z);
@@ -53,30 +53,39 @@ for (let hi=0; hi<18; ++hi)
         // aim at fairway landing zone on long shots, pin otherwise
         const carry0 = CLUBS[clubI][1]*SURF_PHYS[g.s][3];
         distToPath(ball.x, ball.z);
-        let tgt = H.pin;
+        let tgt = hole.pin;
         if (clubI != CLUB_PUTTER && d > carry0+20)
-            tgt = pathPointAt(Math.min(lastAlong + carry0*.95, H.len));
+            tgt = pathPointAt(Math.min(lastAlong + carry0*.95, hole.len));
         // wind compensation
         let aim = Math.atan2(tgt.x-ball.x, tgt.z-ball.z);
         if (clubI != CLUB_PUTTER)
         {
-            const la = (CLUBS[clubI][2]+7)*Math.PI/180;
-            const v = Math.sqrt(carry0*GRAV/Math.sin(2*la));
-            const tf = 2*v*Math.sin(la)/GRAV;
-            const drift = H.wind.s*DRAG_K*WIND_V*tf*tf/2;
-            const tx = tgt.x - Math.sin(H.wind.a)*drift, tz = tgt.z - Math.cos(H.wind.a)*drift;
+            // THE SAME ESTIMATE AS debugGame's botSwing, from launchVel: the
+            // old inline range formula left out CARRY_K, and since the drift
+            // goes as speed x hang time squared that came out 1.43^1.5 = 40%
+            // short of what the ball actually does (measured: a driver in a
+            // 10 crosswind drifts 41yd; this bot corrected for 24, the
+            // watched one for 42)
+            const lv = launchVel({}, clubI, 0, SURF_PHYS[g.s][3]);
+            const tf = 2*lv.vy/GRAV;
+            const drift = hole.wind.s*DRAG_K*WIND_V*Math.hypot(lv.vx, lv.vz)*tf*tf/2;
+            const tx = tgt.x - Math.sin(hole.wind.a)*drift, tz = tgt.z - Math.cos(hole.wind.a)*drift;
             aim = Math.atan2(tx-ball.x, tz-ball.z);
         }
         if (clubI == CLUB_PUTTER)
         {
             ++putts;
-            launchPutt(d*1.06, aim + rnd(.012,-.012));
+            launchPutt(d*PUTT_OVER, aim + rnd(.012,-.012));
         }
         else
         {
             const lie = SURF_PHYS[g.s][3];
             const carry = CLUBS[clubI][1]*lie;
-            launchBall(clubI, Math.min(Math.max(d/carry,.12),1), rnd(.04,-.04), 0, aim + rnd(.015,-.015), lie);
+            let td = Math.hypot(tgt.x-ball.x, tgt.z-ball.z);
+            td *= 1 - Math.cos(hole.wind.a - aim)*hole.wind.s*.01;
+            if (tgt == hole.pin) td *= .92;
+
+            launchBall(clubI, Math.min(Math.max(td/carry,.12),1), rnd(.04,-.04), 0, aim + rnd(.015,-.015), lie);
         }
         // simulate until event
         for (let t=0; t<60*30 && !ballEvent; ++t)
@@ -85,8 +94,8 @@ for (let hi=0; hi<18; ++hi)
         if (!ballEvent) ballEvent = 'STUCK';
         const g2 = groundAt(ball.x, ball.z);
         log.push(\`\${CLUBS[clubI][0]} d\${d|0} -> \${EV_NAMES[ballEvent] || ballEvent} \${SURF_NAMES[g2.s]} d\${ballToPin()|0}\`);
-        if (shot==0 && (g2.s==SURF_FAIRWAY||g2.s==SURF_GREEN) && H.par>3) stats.fairwayHits++;
-        if (strokes == H.par-2 && g2.s==SURF_GREEN) stats.girs++;
+        if (shot==0 && (g2.s==SURF_FAIRWAY||g2.s==SURF_GREEN) && hole.par>3) stats.fairwayHits++;
+        if (strokes == hole.par-2 && g2.s==SURF_GREEN) stats.girs++;
         const ev = ballEvent; ballEvent = 0;
         if (ev == EV_HOLED) break;
         if (ev=='STUCK') { log.push('BALL NEVER STOPPED'); break; }
@@ -104,8 +113,8 @@ for (let hi=0; hi<18; ++hi)
     }
     stats.putts += putts;
     stats.maxHole = Math.max(stats.maxHole, strokes);
-    total += strokes; totalPar += H.par;
-    console.log(\`H\${hi+1} par\${H.par} len\${H.len|0} : \${strokes}\`);
+    total += strokes; totalPar += hole.par;
+    console.log(\`hole\${hi+1} par\${hole.par} len\${hole.len|0} : \${strokes}\`);
     if (${verbose ? 1 : 0}) for (const l of log) console.log('   ', l);
 }
 console.log(\`TOTAL \${total} (par \${totalPar}, \${total-totalPar>=0?'+':''}\${total-totalPar})\`);

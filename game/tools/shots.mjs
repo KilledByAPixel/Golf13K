@@ -125,15 +125,15 @@ try
     // trees near the ball leave the picture AND the collision set, decided
     // once per shot in enterAim (never mid-rotation - that read as jitter)
     const vertsClear = await page.evaluate('DBG().verts');
-    const nearClear = await page.evaluate('H.near.length');
-    await page.evaluate('(()=>{ const t = H.near[0];'
+    const nearClear = await page.evaluate('hole.near.length');
+    await page.evaluate('(()=>{ const t = hole.near[0];'
         + ' ball.x = t.x + 4; ball.z = t.z; ball.y = groundAt(ball.x, ball.z).h;'
         + ' enterAim(); })()');
     await sleep(400);
     const vertsHidden = await page.evaluate('DBG().verts');
     if (!(vertsHidden < vertsClear))
         errors.push(`HARNESS: a tree beside the ball should be hidden (verts ${vertsClear} -> ${vertsHidden})`);
-    if (!(await page.evaluate('H.near.length') < nearClear))
+    if (!(await page.evaluate('hole.near.length') < nearClear))
         errors.push('HARNESS: a hidden tree must leave the collision set too');
     await shot('03e-tree-hidden');
     await page.evaluate('ball.x = ball.z = 0; ball.y = groundAt(0, 0).h; enterAim()');
@@ -220,7 +220,7 @@ try
     // from a bunker the landing ring once stuck to the ball: groundAt sits
     // .5yd below heightAt inside the scoop, and the flight prediction ended
     // against heightAt, so the shot "landed" before it started
-    await page.evaluate('(()=>{ const b = H.bunkers[0]; ball.x = b.x; ball.z = b.z;'
+    await page.evaluate('(()=>{ const b = hole.bunkers[0]; ball.x = b.x; ball.z = b.z;'
         + ' ball.y = groundAt(b.x, b.z).h; clubI = 8; enterAim(); })()');
     await sleep(500);
     const sandRing = await page.evaluate('Math.hypot(predLand.x-ball.x, predLand.z-ball.z)');
@@ -308,12 +308,15 @@ try
         }
         errors.push('HARNESS: the game never reached the intro');
     };
-    const waitCard = async ()=>
+    // minT: the card APPEARS at CARD_T (80) on every hole, but the LAST one
+    // refuses a click until stateTime > 140, so a walk that wants to dismiss
+    // hole 18's card has to wait the longer hold out - see below.
+    const waitCard = async (minT = 85)=>
     {
         for (let t=0; t<8000; t+=200)
         {
             const d = await page.evaluate('DBG()');
-            if (d.state == 5 && d.stateTime > 85) return;
+            if (d.state == 5 && d.stateTime > minT) return;
             await sleep(200);
         }
         errors.push('HARNESS: the hole-out card never appeared');
@@ -332,10 +335,22 @@ try
     await waitState(1); // next hole's intro
     await page.evaluate('JUMP(18); HOLEOUT()');
     await waitCard();
+    await shot('23-results-card'); // hole 18's card IS the results card now
+    // THE LAST CARD HOLDS A SECOND LONGER before it will take a click. It is
+    // the round's result and there is no screen behind it, so a click still in
+    // flight from the hole-out banner must not be able to throw it away. This
+    // check used to dismiss the card at stateTime 85 and assert the title came
+    // back; the hold landed and the click was swallowed, so the walk failed on
+    // working code (Frank caught it, 2026-09-02). Now it pins the hold itself.
+    await click();
+    await sleep(150);
+    if (await page.evaluate('DBG().state') != 5)
+        errors.push('HARNESS: a click inside the last card hold dismissed it');
+    await waitCard(145);
     await click();
     await sleep(400);
-    if (await page.evaluate('DBG().state') != 6) errors.push('HARNESS: hole-out on 18 should reach RESULTS (6)');
-    await shot('23-results-card');
+    // ...and its click ends the round: no separate results state since p237
+    if (await page.evaluate('DBG().state') != 0) errors.push('HARNESS: hole-out on 18 should return to the TITLE (0)');
 
     // mobile: touch device, portrait phone viewport, DPR 2 - taps must drive
     // the canvas HUD (the engine maps touches to mouse button 0) and the
@@ -390,7 +405,7 @@ try
         if (++shotN % 8 == 0)
             await shot('11-bot-' + String(shotN).padStart(3, '0'));
         const dbg = await page.evaluate('DBG()').catch(()=>null);
-        if (dbg && dbg.state == 6) break; // results screen
+        if (dbg && dbg.state == 0) break; // back at the title = round over
     }
     await shot('12-bot-final');
     if (fullRound)

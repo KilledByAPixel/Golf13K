@@ -1,6 +1,6 @@
 'use strict';
 
-/*  RAINBOW GOLF TOUR - zzfx sound effects
+/*  SUNSHINE GOLF CLASSIC - zzfx sound effects
     Preset-derived shapes (noise thumps for impacts, coin/powerup arps for
     rewards), never ear-tuned. The first parameter is the volume. */
 
@@ -113,25 +113,23 @@ class Sfx
     playNote(semitones, volume) { this.play(volume, 2**(semitones/12), 0); }
 }
 
-const snd_tee     = new Sfx([,,400,.04,,.15,,,3,,,,,3,,,,.3,.06]);       // driver thump
-const snd_putt    = new Sfx([,,1e3,.02,,,,,3,,,,,3,,,,.4,.01]);      // soft tap
-const snd_bounce  = new Sfx([.5,,,,,.04,4]);    // turf blip
-const snd_sand    = new Sfx([,,160,,,.4,4,,,,,,,5]);  // sand thud
-const snd_splash  = new Sfx([,,,.05,.1,.5,4,,,,,,,8]);   // water
-const snd_hole    = new Sfx([,,1600,,,.4,,,,,800,.05]);        // coin (cup rattle)
-const snd_nice    = new Sfx([.8,,1e3,,,.4,1,2,,,600,.1]);           // high coin
-const snd_fanfare = new Sfx([,,500,.02,.1,1,1,,,,250,,.05,,,,.1]); // powerup arp
+const snd_tee     = new Sfx([,.1,400,.04,,.2,,,3,9,,,,2,,,,.3,.06]);       // driver thump
+const snd_putt    = new Sfx([,,1e3,.02,,,,,3,99,,,,3,,,,.4,.01]);      // soft tap
+const snd_bounce  = new Sfx([.4,,0,.01,,.01,,,,1e4,,,,9]);    // turf blip
+const snd_sand    = new Sfx([.4,,90,.1,,.4,,,,40,,,,20]);  // sand thud
+const snd_splash  = new Sfx([,,300,.05,,.6,,,,,,,,30,,,.2]);   // water
+const snd_nice    = new Sfx([,,500,.02,.1,1,1,,,,250,,.05,,,,.1]);           // powerup arp
+const snd_hole    = new Sfx([.6,,800,,,.4,,2,,,800,.05]);        // coin (cup rattle)
+const snd_fanfare = new Sfx([,,800,,,.4,,2,,,800,,.1]); // high coin
 const snd_tick    = new Sfx([.3,,500,,,.03,,,9]);              // UI: view toggle, power set
 // UI: nudging a shot setting
-const snd_adjust  = new Sfx([.15,,1200,,,.012,,,6]);           // UI: club/spin/distance
-const snd_ob      = new Sfx([,,900,.05,.2,.4,1,.3,,6,-200,.1,.2]);     // fail slide
+const snd_adjust  = new Sfx([.15,,1200,,,.01,,,6]);           // UI: club/spin/distance
+const snd_ob      = new Sfx([.5,,880,.05,.2,.5,1,.3,,6,-100,.1,.2]);     // fail slide
 
-// speed is the impact speed in yards/second - a full drive lands at about
-// 25, hence the divisor. SQUARE ROOT, not linear: impact speeds are heavily
-// skewed (median 5.7), and a linear map left 40% of bounces on the floor.
+// blay bound sound with volume scaled by speed
 function sfxBounce(surf, speed)
 {
-    const v = clamp((speed/25)**.5, .3, 1);
+    const v = clamp((speed/40)**.5);
     if (surf == SURF_BUNKER)
         snd_sand.play(v);
     else
@@ -149,9 +147,8 @@ function sfxBounce(surf, speed)
 // counter stops during a swing. MUSIC = 0 folds it all out of the build.
 const MUSIC = 1;
 const snd_kick = MUSIC && new Sfx([,,99,,,.02,,,,,,,,2]);
-const snd_hat  = MUSIC && new Sfx([,,1e3,,,.02,4]);
 const snd_bass = MUSIC && new Sfx([.5,0,82,,,.05,,.5,,,,,,,,,,.1,.1]);
-const snd_lead = MUSIC && new Sfx([.3,0,164,,,,,9,,,,,,,,,,.1,.2]);
+const snd_lead = MUSIC && new Sfx([.3,0,164,,,,,9,,,,,,,,,,.1,.3]);
 const BASS_SCALE = [0,5,7,5]; // pentatonic
 const SCALE = [0,7,4,12,11,12,7,4];   // major
 let beat = -1, bassNote = 0, leadNote = 0, chord = 0;
@@ -169,21 +166,22 @@ function updateMusic()
         bassNote = leadNote = chord = beat%128 ? chord + randSign() : 0;
 
     // hat on eighths, dropping out for the last bar of every 4 so the loop
-    if (beat%128 < 96 && (beat%2 == 0 || !randInt(9)))
-        snd_hat.play(((beat>>1)%4 - 2 ? .2 : .4) - rand(.1));
+    if (beat%2 == 0 || !randInt(9))
+        snd_bounce.play(((beat>>1)%4 - 2 ? .2 : .4) - rand(.1));
     if (beat%4 == 0)
         snd_kick.play(((beat>>1)%4? 1 : .5) - rand(.1));
         
     // bass: mostly on the beat, occasionally off it
+    if (state != ST_INTRO)
     if (beat%2 == 0 && (beat%8 == 0 || randInt(4)) || !randInt(9))
-        snd_bass.playNote(BASS_SCALE[mod(bassNote = bassNote + (state != ST_TITLE), BASS_SCALE.length)]);
+        snd_bass.playNote(BASS_SCALE[mod(bassNote = bassNote + (state != ST_TITLE), BASS_SCALE.length)], rand(.8, 1));
 
     // melody, an octave above the bass
     if (state == ST_TITLE)
-    if (beat%128 < 64 ? beat%8 == 0 : beat%2==0 || beat%3 == 0)
+    if (beat%128 < 64 ? beat%8 == 0 : beat%2 == 0 || beat%8 == 7)
     {
         const b = BASS_SCALE[mod(chord, BASS_SCALE.length)];
         const a = b+SCALE[mod(leadNote = beat%16 && leadNote+1, SCALE.length)];
-        snd_lead.playNote(a+7);
+        snd_lead.playNote(a+7, rand(.8, 1));
     }
 }

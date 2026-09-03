@@ -34,7 +34,19 @@ let cameraScale = 32;
  *  @type {Vector2}
  *  @default Vector2(1920,1080)
  *  @memberof Settings */
-let canvasMaxSize = vec2(1920, 1080);
+// EFFECTIVELY UNCAPPED, on purpose (2026-09-02). The engine CENTRES the
+// canvas rather than scaling it, so this is not a quality setting - it is the
+// size past which the game letterboxes and stops filling the screen. At the
+// stock 1920x1080 that meant black bars on any window taller than 1080 CSS
+// px: a tablet in portrait (iPad Pro is 1024x1366) and, worse, any desktop
+// browser on a 1440p or 4K monitor, which is what a jam judge is likely to
+// use. Measured: a 2400x1300 window rendered 1920x1080 and never recovered.
+// Raising it also SAVED 4 bytes, 1e4 being shorter than 1920,1080.
+// The trade is fill rate - a big window now renders every pixel of itself.
+// If that ever costs frames, the real fix is to cap the backing store and let
+// CSS scale it up (the fixed-size branch of updateCanvas already does this),
+// which keeps the aspect exact and fills the screen for a few more bytes.
+let canvasMaxSize = vec2(1e4, 1e4);
 
 /** Fixed size of the canvas, if enabled canvas size never changes
  * - you may also need to set mainCanvasSize if using screen space coords in startup

@@ -1,6 +1,6 @@
 'use strict';
 
-/*  RAINBOW GOLF TOUR - WebGL renderer
+/*  SUNSHINE GOLF CLASSIC - WebGL renderer
     Ported from Frank's Dr1v3n Wild (Drive13K) rendering engine: batched
     triangle strips, vertex colors, fog, z-buffer. Terrain is a heightfield
     mesh (smooth gouraud), props are flat-shaded lathes (octahedra, boxes).
@@ -96,7 +96,7 @@ const WATER_GLSL =
     // line. The swell alone clears the threshold; the chop is weighted low
     // (.12) so it only wobbles the edge.
     +'d.rgb+=max(sin(a)+B*.12-.6,0.)*.55'
-    +(PRISM ? '*(1.+.6*cos(w*3.+vec3(0,2,4)))' : '')+';'
+    +(PRISM ? '*(1.+.6*cos(w*9.+vec3(0,2,4)))' : '')+';'
     // Sparkle: each water vertex twinkles on its own hashed clock, so glints
     // pop at random rather than sweeping past as a pattern. max(cos(a),0.)
     // clusters them on the face tilted toward the light, where sun on water
@@ -238,7 +238,7 @@ function glPreRender()
     // the water's wind: xy = direction, z = the water CLOCK - time scaled
     // by strength so a windy hole chops faster. .6 + s*.05 spans .65 at
     // the calm floor (never zero, Frank's spec) to 1.2 at the 12 ceiling.
-    glContext.uniform3f(glUniform('u'), Math.sin(H.wind.a), Math.cos(H.wind.a), time*(.6 + H.wind.s*.05));
+    glContext.uniform3f(glUniform('u'), Math.sin(hole.wind.a), Math.cos(hole.wind.a), time*(.6 + hole.wind.s*.05));
     // Cleared to the HAZE: this is what shows below the horizon wherever the
     // terrain does not reach, so it has to match the fog. Clearing to the sky
     // top instead (p158) put sky colour along the horizon - the terrain does
@@ -278,9 +278,15 @@ function glPushVert(pos, color)
 }
 
 // capped triangle strip; colors = one packed color or one per point
+// The .length test is not tidiness: `colors[i] ?? colors` INDEXES A NUMBER
+// whenever a strip has one packed colour - which is every lathe quad, every
+// terrain cell, every tree - and a keyed read on a primitive takes V8's
+// generic path, boxing it each time. Measured over one bakeNear: 5.9ms to
+// 0.6ms, ten times faster, and .length misses cheaply because it is a NAMED
+// property. This is most of what makes a tree bake cost what it does.
 function glPushVerts(points, colors)
 {
-    const n = points.length, c = (i)=> colors[i] ?? colors;
+    const n = points.length, c = (i)=> colors.length ? colors[i] : colors;
     if (glBase && n+2 >= gl_MAX_BATCH - glBatchCount) // (the static build never flushes)
         glRender();
     glPushVert(points[0], c(0));
@@ -292,6 +298,17 @@ function glPushVerts(points, colors)
 // single-color strip lit by a face normal (null = unlit)
 
 // gl constants as ints (minify-friendly, from Drive13K)
+// gl_STATIC_MAX IS A REAL CEILING, not a round number - the world build
+// ASSERTs against it and the release strips that assert, so overrunning it
+// would silently eat into the dynamic batch behind it and drop geometry
+// with no warning at all. MEASURED 2026-09-02: the classic 18 peaks at
+// 451,640 verts on hole 15, and 12 sampled REMIX courses peaked at 473,960
+// - **94.8% of the old 5e5**, with a million seeds unsampled. It was one
+// unlucky course from shipping invisible holes in the world.
+// 7e5 costs 4MB more of Float32Array and, as it happens, 5 BYTES LESS in
+// the zip than 5e5 did. (Doubling the wildflowers was the question that
+// turned this up: at 2000 tries a sampled remix hole hit 502,670, straight
+// through the old limit. Not done - see CHANGELOG p269.)
 const
 gl_TRIANGLE_STRIP = 5, gl_DEPTH_BUFFER_BIT = 256, gl_ONE = 1,
 gl_ONE_MINUS_SRC_ALPHA = 771, gl_DEPTH_TEST = 2929, gl_BLEND = 3042,
@@ -299,7 +316,7 @@ gl_UNSIGNED_BYTE = 5121, gl_FLOAT = 5126, gl_COLOR_BUFFER_BIT = 16384,
 gl_ARRAY_BUFFER = 34962, gl_STATIC_DRAW = 35044, gl_DYNAMIC_DRAW = 35048,
 gl_FRAGMENT_SHADER = 35632, gl_VERTEX_SHADER = 35633,
 gl_COMPILE_STATUS = 35713, gl_LINK_STATUS = 35714,
-gl_MAX_BATCH = 3e4, gl_STATIC_MAX = 5e5, gl_INDICIES_PER_VERT = 5, gl_VERTEX_BYTE_STRIDE = 20;
+gl_MAX_BATCH = 3e4, gl_STATIC_MAX = 7e5, gl_INDICIES_PER_VERT = 5, gl_VERTEX_BYTE_STRIDE = 20;
 
 ///////////////////////////////////////////////////////////////////////////////
 // static world: everything that never moves (terrain, trees) is pushed once
@@ -317,14 +334,14 @@ function buildWorld()
     // heading is scattered per hole with sin() of the index - no rand()
     // draw, since genHole's stream must not move. Both stay in frame from
     // the tee, which is what the flare needs.
-    glLightDir = skyDir(SUN_A = Math.sin(H.index*2.4+1),
-        SUN_E = lerp(.75, .2, H.index/17));
+    glLightDir = skyDir(SUN_A = Math.sin(hole.index*2.4+1),
+        SUN_E = lerp(.75, .2, hole.index/17));
     if (debug && DEV_THUMBNAIL) // debug-gated or the 1 FOLDS INTO RELEASE
         SUN_E = .5;
     pushTerrain();
-    for (const t of H.trees)
+    for (const t of hole.trees)
         if (t.k & 1) pushTreeGL(t); // the ODD kinds: far forest + flowers,
-        // i.e. everything H.near (the even kinds) does not carry
+        // i.e. everything hole.near (the even kinds) does not carry
     nearStart = glBatchCount;
     bakeNear();
 }
@@ -336,7 +353,7 @@ function buildWorld()
 function bakeNear()
 {
     glBase = 0; glBatchCount = nearStart;
-    for (const t of H.near)
+    for (const t of hole.near)
         pushTreeGL(t);
     glStaticCount = glBatchCount;
     ASSERT(glStaticCount < gl_STATIC_MAX, 'static stream overflow');
@@ -375,11 +392,14 @@ function buildGrid()
 {
     // fine cells over the path + features, coarse ring far out
     let minX = 0, maxX = 0;
-    for (const p of H.path) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); }
-    for (const w of H.waters) { minX = Math.min(minX, w.x-w.rx); maxX = Math.max(maxX, w.x+w.rx); }
+    for (const p of hole.path) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); }
+    for (const w of hole.waters) { minX = Math.min(minX, w.x-w.rx); maxX = Math.max(maxX, w.x+w.rx); }
     meshXs = gridAxis(minX - 80, maxX + 80);
-    meshZs = gridAxis(-40, H.len + 60);
-    meshH = meshZs.map(z => meshXs.map(x => groundAt(x, z).h));
+    meshZs = gridAxis(-40, hole.len + 60);
+    // meshH is filled by pushTerrain's corner loop, off the SAME groundAt
+    // call that feeds groundColor - sampling it here as well doubled the
+    // terrain cost (see the corner loop)
+    meshH = [];
 }
 
 // height of the DRAWN mesh at (x, z): the exact plane of the strip triangle
@@ -403,16 +423,26 @@ function pushTerrain()
     const cols = xs.length-1, rows = zs.length-1;
     // corner grids: position, slope normal, surface colour
     const P = [], N = [], C = [];
+    // ONE groundAt per vertex, feeding the height, the mesh grid and the
+    // colour. groundColor used to sample it a second time on a point
+    // buildGrid had already sampled - 18% of the whole terrain build.
     for (let j=0; j<=rows; ++j)
     {
-        P[j] = []; N[j] = []; C[j] = [];
+        P[j] = []; N[j] = []; C[j] = []; meshH[j] = [];
         for (let i=0; i<=cols; ++i)
         {
             const x = xs[i], z = zs[j];
-            P[j][i] = vec3(x, meshH[j][i], z);
             const [gx, gz] = slopeAt(x, z, MESH_CELL/2);
             N[j][i] = vec3(-gx, 1, -gz).normalize();
-            C[j][i] = groundColor(x, z);
+            // groundAt and groundColor must stay ADJACENT and last: the
+            // colour reads the lastAlong/lastDist that groundAt leaves
+            // behind, and slopeAt's four heightAt calls each re-run
+            // distToPath at an OFFSET point. Running slopeAt between them
+            // costs nothing, breaks no test, and shifts every mow stripe
+            // and the rough mottle by half a cell.
+            const g = groundAt(x, z);
+            P[j][i] = vec3(x, meshH[j][i] = g.h, z);
+            C[j][i] = groundColor(x, z, g);
         }
     }
     // Antialias surface boundaries: one box pass turns the 2yd sawtooth of
@@ -430,7 +460,7 @@ function pushTerrain()
     // SHADOW_MIN_E so a low sun cannot smear them. Fine cells only: a dark
     // vertex on a coarse ring would streak 100yd.
     const sd = skyDir(SUN_A, Math.max(SUN_E, SHADOW_MIN_E)), sl = 1.2/sd.y;
-    for (const t of H.trees)
+    for (const t of hole.trees)
     {
         if (t.k > 2) continue; // flowers are far too small to cast one
         const R = t.s*3;
@@ -460,18 +490,15 @@ function pushTerrain()
 ///////////////////////////////////////////////////////////////////////////////
 // low-poly props
 
-// surface of revolution around the y axis at pos: profile = [[r, h], ...]
+// Surface of revolution about the y axis at pos: profile = [[r, h], ...]
 // rings, `sides` flat-shaded quads per ring pair (4 = the low-poly look).
 // An octahedron is [[0,-r],[r,0],[0,r]]; a box trunk is [[w,0],[w*.7,h]].
-// rot turns the whole lathe about the up axis (nothing is instanced here,
-// so a per-prop heading is free geometry).
-// rot is now a real rotation about Y rather than an offset added to the
-// lathe angle - the two are identical (sin(a+rot) expands to exactly this),
-// which frees it to double as the heading that `roll` tumbles across. roll
-// turns the vertical and along-rot components together and the across one
-// rides. Normals come from the transformed points, so the baked lighting
-// tumbles with it for free - the only reason a plain white ball reads as
-// rolling at all: its 32 facets span 113/255 of brightness.
+// rot is a real rotation about Y - a per-prop heading, free geometry since
+// nothing is instanced - and roll then TUMBLES across it, turning the
+// vertical and along-rot components together while the across one rides.
+// Normals come from the transformed points, so the baked lighting tumbles
+// with the shape for free. That is the only reason a plain white ball reads
+// as rolling at all: its 32 facets span 113/255 of brightness.
 function pushLathe(pos, profile, sides, color, rot=0, roll=0)
 {
     const rc = Math.cos(roll), rs = Math.sin(roll);
@@ -499,7 +526,7 @@ function pushLathe(pos, profile, sides, color, rot=0, roll=0)
 // t.k: 0 = full tree, 1 = far tree (one canopy), 2 = bush, 3 = wildflower
 function pushTreeGL(t)
 {
-    const gh = meshHeightAt(t.x, t.z), pal = H.pal, s = t.s;
+    const gh = meshHeightAt(t.x, t.z), pal = hole.pal, s = t.s;
     // The hole's pal.flower plus a small jitter, so a meadow reads as one
     // species with variation - per-flower hues read as confetti. t.c is
     // already spent on that jitter, so the second-species roll takes an
@@ -520,25 +547,24 @@ function pushTreeGL(t)
     // FIVE sides - an even count reads as a crystal.
     if (t.k == 3)
         return pushLathe(vec3(t.x, gh, t.z), [[0,0],[2*s,3*s]], 5, leaf, rot);
-    // FOLIAGE SWAY rides the LEAF ALPHA, and only trees and bushes get it -
-    // FLOWERS ARE TOO SMALL TO SWAY, so this sits below their early return
-    // rather than beside the colour they share.
-    // The vertex shader reads a colour in the (.9, .995) band as leaves,
-    // offsets them by (a-.9)*3 yards of a two-wave rustle, then resets alpha
-    // to 1 so they still draw opaque: the alpha is a channel carrying wind
-    // strength, not a transparency, which is why setting it to a sensible
-    // looking 1 silently switches the whole effect off.
-    // Usable range is bytes 230..253. Below 230 falls outside the band and
-    // never moves; 254 is the WATER marker and would put every leaf into the
-    // wave shader. The calm floor packs to 234, wind 12 to 252.
-    // The FLOOR was raised from .902 on 2026-08-31: at the old base a calm
-    // hole's peak sway was .06yd on a 3yd canopy - frozen to the eye - and
-    // Frank saw trees moving on some holes and not others. .92 gives calm
-    // holes a visible idle (~.16yd peak) while wind 12 packs to the very
-    // same byte as before, so the windy ceiling is untouched.
-    // Also why H.wind must be set BEFORE buildWorld (see startHole): the
-    // amplitude is baked into the vertex here and never read again.
-    leaf.a = .92 + Math.min(H.wind.s/12, 1)*.07;
+    // FOLIAGE SWAY RIDES THE LEAF ALPHA. The vertex shader reads a colour in
+    // the (.9, .995) band as leaves, offsets them by (a-.9)*3 yards of a
+    // two-wave rustle, then resets alpha to 1 so they still draw opaque.
+    // So alpha here is a CHANNEL CARRYING WIND STRENGTH, not a transparency -
+    // setting it to a sensible-looking 1 silently switches the effect off.
+    // Usable range is bytes 230..253: below 230 falls outside the band and
+    // never moves, and 254 is the WATER marker, which would put every leaf
+    // through the wave shader. The .92 floor packs to 234 and gives a calm
+    // hole a visible idle (~.16yd peak); the top of the wind packs to 252.
+    // THE 8 IS THE TOP OF course.js's WIND RANGE (1 + MAXWIND) and has to
+    // track it. It was 12 against a range that only reached 10, so the
+    // windiest hole in the game swayed at 83% and never once hit full;
+    // then 10 against MAXWIND 9, and 8 since MAXWIND went to 7 (p281).
+    // Trees and bushes only - flowers are too small to sway, which is why
+    // this sits below their early return rather than beside the shared colour.
+    // It is also why hole.wind must be set BEFORE buildWorld: the amplitude
+    // is baked into the vertex here and never read again.
+    leaf.a = .92 + hole.wind.s/8*.07;
     if (t.k < 2) // box trunk (a stretched square prism)
         pushLathe(vec3(t.x, gh, t.z), [[s*.3, 0], [s*.22, th]], 4, hslCol(pal.trunk), rot);
     pushLathe(vec3(t.x, gh + th, t.z), [[0,-s*1.9],[s*1.7,0],[0,s*1.9]], 4, leaf, rot);
@@ -566,9 +592,9 @@ function pushPinGL()
     // sloped green either can bury it (H17 clipped the whole hole). Stand
     // it on whichever surface is higher, then lift by slope x radius so
     // the uphill rim clears too - a couple of inches, only on a slope.
-    const gh = Math.max(heightAt(H.pin.x, H.pin.z), meshHeightAt(H.pin.x, H.pin.z))
-        + Math.hypot(...slopeAt(H.pin.x, H.pin.z))*HOLE_R;
-    const p = vec3(H.pin.x, gh, H.pin.z);
+    const gh = Math.max(heightAt(hole.pin.x, hole.pin.z), meshHeightAt(hole.pin.x, hole.pin.z))
+        + Math.hypot(...slopeAt(hole.pin.x, hole.pin.z))*HOLE_R;
+    const p = vec3(hole.pin.x, gh, hole.pin.z);
     // distance-compensated pole width + flag size so the pin stays readable
     // from the tee (a true-width pole is sub-pixel at 300yd)
     // k = 0 when the pin is pulled: the pole and flag are both scaled by
@@ -583,9 +609,9 @@ function pushPinGL()
     // 7ft stick - if that ever wants correcting too.)
     pushLathe(vec3(p.x, p.y+.002, p.z), [[0,-.01],[HOLE_R,0],[0,.01]], 9, new Color(.1,.1,.1)); // 9-gon: a cup should read round
     pushLathe(p, [[.04*k, 0], [.04*k, POLE_H]], 4, new Color(.9,.9,.9));
-    const len = Math.min(.6 + H.wind.s*.06, 1.2)*(1 + Math.sin(time*5)*.1)*k;
-    const tip = vec3(p.x + Math.sin(H.wind.a)*len, p.y + POLE_H - .2*k + Math.sin(time*5)*.08,
-        p.z + Math.cos(H.wind.a)*len);
+    const len = Math.min(.6 + hole.wind.s*.06, 1.2)*(1 + Math.sin(time*5)*.1)*k;
+    const tip = vec3(p.x + Math.sin(hole.wind.a)*len, p.y + POLE_H - .2*k + Math.sin(time*5)*.08,
+        p.z + Math.cos(hole.wind.a)*len);
     const a = vec3(p.x, p.y+POLE_H, p.z), b = vec3(p.x, p.y+POLE_H-.4*k, p.z);
     glPushVerts([a, tip, b], packColor(new Color(1,.2,.3), null));
     glEnableFog = 1;
@@ -619,71 +645,100 @@ function pushBallGL()
         [[0,-r],[s,-s],[r,0],[s,s],[0,r]], 8, WHITE, ballDir, ballRoll);
 }
 
-// putting aid: downhill arrows lying ON the green surface (z-buffered,
-// exactly mapped - no screen-space projection involved). Length and color
-// scale with steepness; flat spots draw nothing, which reads as flat.
-function pushPuttAidGL()
+// aim aid: rainbow ring on the terrain at the predicted landing point,
+// z-buffered (hills occlude it), fog-exempt so it stays vivid far downrange.
+// FULL SHOTS ONLY (Frank, 2026-09-01): a putt is read off the dashed line
+// and the cup itself, both of them right under a close camera, and the ring
+// and its beacon only got in the way. That took the putt size-scaling out of
+// here with it - every floor below is now the one distance a full shot wants.
+// DEBUG ONLY, the G key, and STAYING that way - Frank's idea, and his call
+// not to ship it for now (2026-09-01): "definitely a cool idea... maybe we'll
+// figure out a way to make it work better at some point", and then "that's
+// fine if it's just in debug". It costs the release NOTHING as it stands:
+// `debug` is a const 0 there, so the call folds out and Closure drops the
+// whole function - the same trick showColl uses.
+// To ship it, swap the pushLandingRingGL() call in renderViewGL.
+//
+// WHAT SHIPPING IT WOULD COST, measured as real builds against 13,286:
+//   replacing the ring, as written .......... +91
+//   ...square grid instead of a disc ........ +83
+//   ...without the downhill pointing ........ +60   (loses the whole point)
+//   ...both of those ........................ +54
+//   ...one height per chevron, not per corner  +88
+// So the pointing is the priciest single piece at 31 bytes and also the only
+// thing in the game that shows BREAK; the auto-range is 7 and must stay; the
+// disc over a square is 8. Note it also trades away a rainbow - the ring is
+// the rainbow at the landing point - which is not nothing in this jam.
+//
+// The landing spot drawn as a SLOPE GRID instead of a ring: a chevron at every
+// grid point, tinted RED where the ground stands above the centre and BLUE
+// where it falls below, white at the centre's own height.
+// Two departures from the sketch, both cheap and both adding information the
+// colour alone cannot carry:
+//  - the chevrons POINT DOWNHILL, off slopeAt. A coloured dot says how high a
+//    spot is; a pointer says which way a ball will run, which is the thing a
+//    player actually wants and the only thing no other aid in the game shows.
+//  - the grid is a DISC, not a square, so it reads as a spot rather than a
+//    tile and the corners do not sit twice as far out as the edges.
+// Unlike the ring it would draw for PUTTS too, which is where reading a slope
+// matters most and where the idiom comes from (Everybody's Golf' arrow field,
+// EA's contour grid, PGA 2K's colour-coded slope).
+// THE COLOUR SCALE AUTO-RANGES, and it has to. Measured over all 18 greens,
+// the relief across this disc has a median of .11yd and a median MAXIMUM of
+// .71 - so a fixed full-scale height washes a green out to plain white (the
+// first try at 1.2yd coloured 230 of 245 vertices near-white). The same aid
+// also draws at a full shot's landing point out on open ground, where the
+// relief is many times larger, so no one constant serves both.
+// GRID_FLOOR is what stops the auto-range turning a dead-flat green into a
+// rainbow of noise: nothing under it ever reaches full colour. Hole 1's green
+// moves .12yd across the whole 18yd disc, and it SHOULD read as flat.
+const GRID_R = 4, GRID_S = 2.2, GRID_FLOOR = .3; // rings, yards apart, min full-scale
+function pushLandingGridGL()
 {
-    const gr = H.gr;
-    if (SLOPE_ARROWS)
-    for (let wx = Math.floor((H.green.x-gr)/2)*2; wx <= H.green.x+gr; wx += 2)
-    for (let wz = Math.floor((H.green.z-gr)/2)*2; wz <= H.green.z+gr; wz += 2)
+    const d = Math.hypot(predLand.x-camX, predLand.z-camZ);
+    const s = Math.max(.3, d*.005);           // chevron size, distance-compensated
+    const h0 = heightAt(predLand.x, predLand.z);
+    // pass one: the relief, so pass two can colour against it
+    const pts = [];
+    let range = GRID_FLOOR;
+    for (let j=-GRID_R; j<=GRID_R; ++j)
+    for (let i=-GRID_R; i<=GRID_R; ++i)
+        if (i*i + j*j <= GRID_R*GRID_R)
+        {
+            const x = predLand.x + i*GRID_S, z = predLand.z + j*GRID_S;
+            const dh = heightAt(x, z) - h0;
+            range = Math.max(range, Math.abs(dh));
+            pts.push([x, z, dh]);
+        }
+    glEnableFog = 0;
+    for (const [x, z, dh] of pts)
     {
-        if (Math.hypot(wx-H.green.x, wz-H.green.z) > gr-1)
-            continue;
-        const h = heightAt(wx, wz);
-        const [gx, gz] = slopeAt(wx, wz);
-        const slope = Math.hypot(gx, gz);
-        if (slope < .01)
-            continue;
-        const dx = -gx/slope, dz = -gz/slope;      // downhill direction
-        const len = clamp(slope*24, .7, 2);
-        const k = Math.min(slope*9, 1);            // steepness 0..1
-        const px = -dz*.1, pz = dx*.1;           // shaft half-width
-        const x2 = wx + dx*len, z2 = wz + dz*len;  // arrow tip
-        const mx = wx + dx*len/2, mz = wz + dz*len/2; // head base
-        const hm = heightAt(mx, mz), h2 = heightAt(x2, z2);
-        const col = new Color(1, 1-k*.5, 1-k*.8, .8); // white -> hot as steeper
-        // explicit shaft + arrowhead so the downhill direction is unambiguous
-        glPushVerts([
-            vec3(wx+px, h+.1, wz+pz), vec3(wx-px, h+.1, wz-pz),
-            vec3(mx+px, hm+.1, mz+pz), vec3(mx-px, hm+.1, mz-pz)], packColor(col, null));
-        glPushVerts([
-            vec3(mx+px*3, hm+.1, mz+pz*3), vec3(mx-px*3, hm+.1, mz-pz*3),
-            vec3(x2, h2+.1, z2)], packColor(col, null));
+        // white at the centre's height, to red at the top of the range, blue
+        // at the bottom
+        const t = dh/range;
+        const col = packColor(new Color(clamp(1+t), clamp(1-Math.abs(t)), clamp(1-t)), null);
+        // the gradient points UPHILL, so negate it. The epsilon keeps a
+        // near-flat spot pointing somewhere instead of collapsing the
+        // triangle to a point and vanishing.
+        const [gx, gz] = slopeAt(x, z);
+        const m = Math.hypot(gx, gz) + 1e-6, dx = -gx/m, dz = -gz/m;
+        const p = (f, r)=>
+        {
+            const px = x + dx*f*s - dz*r*s, pz = z + dz*f*s + dx*r*s;
+            return vec3(px, heightAt(px, pz)+.1, pz);
+        };
+        glPushVerts([p(1.6, 0), p(-.8, 1), p(-.8, -1)], col);
     }
-
-    // The line the putt would ACTUALLY take, rolled with the real physics at
-    // CUP pace. Only the first PUTT_LINE yards: enough to feel the break
-    // starting, without a full path cluttering the green.
-    const b = puttVel({x: ball.x, y: ball.y, z: ball.z}, ballToPin(), aimYaw);
-    const col = new Color(1,1,1,.8);
-    rollRest = 0;
-    for (let i = 0, run = 0; i < 120 && !rollRest && run < PUTT_LINE; ++i)
-    {
-        const x0 = b.x, y0 = b.y, z0 = b.z;
-        // a dash ends at PUTT_DASH steps OR the length cap, whichever first
-        for(let j = PUTT_DASH; j-- && Math.hypot(b.x-x0, b.z-z0) < PUTT_MAXDASH;)
-            rollStep(b);
-        if (i & 1)
-            continue;   // every other segment left out, so the line dashes
-        const dx = b.x-x0, dz = b.z-z0, d = Math.hypot(dx, dz) || 1;
-        run += d;
-        const px = -dz/d*PUTT_W, pz = dx/d*PUTT_W;
-        glPushVerts([vec3(x0+px, y0+.1, z0+pz), vec3(x0-px, y0+.1, z0-pz),
-                     vec3(b.x+px, b.y+.1, b.z+pz), vec3(b.x-px, b.y+.1, b.z-pz)], packColor(col, null));
-    }
+    glEnableFog = 1;
 }
 
-// aim aid: rainbow ring on the terrain at the predicted landing point,
-// z-buffered (hills occlude it), fog-exempt so it stays vivid far downrange
+// radians of beacon lean per yard/second of wind (see the beacon below)
+const WIND_LEAN = .1;
 function pushLandingRingGL()
 {
     // distance-compensated size so the ring stays readable at range
-    // (much smaller floors for putts - the cam is close and greens are small)
-    const k = clubI == CLUB_PUTTER ? .3 : 1;
     const d = Math.hypot(predLand.x-camX, predLand.z-camZ);
-    const r = Math.max(3*k, d*.03), n = 20, w = Math.max(.4*k, d*.01);
+    const r = Math.max(3, d*.03), n = 20, w = Math.max(.4, d*.01);
     const gh = heightAt(predLand.x, predLand.z);
     glEnableFog = 0;
     for (let i=0; i<n; ++i)
@@ -702,29 +757,74 @@ function pushLandingRingGL()
         }
         glPushVerts(pts, packColor(col, null));
     }
-    // slim pulsing beacon so the spot reads even at grazing angles
-    const bh = Math.max(2*k, d*.03)*(1 + Math.sin(time*4)*.1);
-    const br = Math.max(.4*k, d*.006);
-    pushLathe(vec3(predLand.x, gh+bh, predLand.z), [[0,-bh],[br,0],[0,bh]], 4,
-        hsl(time/4, 1, .6));
+    // Slim pulsing beacon so the spot reads even at grazing angles - and it
+    // LEANS WITH THE WIND (Frank, 2026-09-01): upright in a calm, tipped hard
+    // downwind in a gale, so the strength and the direction read together
+    // right where the eye already is. pushLathe's rot/roll do all of it, so
+    // the geometry is free.
+    // It leans TOWARD hole.wind.a, which is the way the ball gets pushed:
+    // flyStep takes the air velocity as (sin(wind.a), cos(wind.a))*wv, and
+    // the HUD arrow points the same way, so the two aids cannot contradict.
+    // It PIVOTS AT THE GROUND - the profile runs 0..2bh from a base at gh
+    // rather than -bh..bh about a centre - because the base is what marks the
+    // landing spot, and leaning it about the middle walks the point upwind.
+    // WIND_LEAN is the knob: wind.s runs 1..12, so .07 spans 4 to 48 degrees.
+    const showBeacon = 0;
+    if (showBeacon)
+    {
+        const bh = Math.max(2, d*.03)*(1 + Math.sin(time*4)*.1)*hole.wind.s*.2;
+        const br = Math.max(.4, d*.006);
+        pushLathe(vec3(predLand.x, gh, predLand.z), [[0,0],[br,bh],[0,2*bh]], 4,
+            hsl(.3 - hole.wind.s/35, 1, .6), hole.wind.a, 1.3);
+    }
     glEnableFog = 1;
 }
 
-// The predicted flight as a camera-facing ribbon, ball to landing. Debug
-// only. Fades along its length so the far end does not compete with the ring.
+// THE SHOT LINE: predictLanding's own path, drawn - the flight arc of a full
+// shot, the rolled break of a putt, one function for both since putting was
+// unified on 2026-09-01. It ENDS on the ground at the stopping point, which
+// is where pushLandingRingGL is about to draw the ring, so the line always
+// runs into the middle of the ring.
+// No collision test and none wanted: it is z-buffered like everything else,
+// so a tree or a ridge in the way simply EATS the line, and that is the cue
+// Frank wanted ("the player will see if it passes through something").
+// A faint ribbon, built exactly like pushTrailGL - the shot is drawn in the
+// same language before it is hit as after, which is also why it is cheap
+// (the shared shape is most of what roadroller has to pay for).
+// Yards over which the shot line fades in away from the camera: nothing at
+// the eye, full alpha at PRED_NEAR. A straight ramp with no dead zone was
+// both cheaper (-4) and better than starting the fade at a fixed radius.
+// Frank's knob. At 4, a full shot's swing cam (ball ~6.5yd out) is untouched
+// and a putt's (ball ~2.7yd) starts the line at about two thirds alpha.
+const PRED_NEAR = 4;
 function pushPredGL()
 {
     const n = predPath.length;
-    if (n < 2) return;
-    const rx = Math.cos(camYaw), rz = -Math.sin(camYaw);
+    const rx = Math.cos(camYaw), rz = -Math.sin(camYaw); // camera right
     const pts = [], cols = [];
     for (let i=0; i<n; ++i)
     {
         const s = predPath[i];
-        const d = Math.hypot(s.x-camX, s.z-camZ);
-        const w = Math.max(.15, d*.004);
-        const c = packColor(hsl(.5, .8, .7, .55 - i/n*.35));
-        pts.push(vec3(s.x-rx*w, s.y, s.z-rz*w), vec3(s.x+rx*w, s.y, s.z+rz*w));
+        // A FLAT half-width in yards, so the ribbon thins with distance like
+        // anything else in the world (Frank, e5c8e4f - it used to be
+        // hypot(camera)* .004, which held it at a constant ~2px instead).
+        const w = .1;
+        // Fades out along its length so the far end never competes with the
+        // ring, which is the mark that actually matters. A PUTT DASHES: two
+        // samples lit, two blanked. It is alpha rather than separate quads
+        // because the strip is already here, and Frank asked to keep the
+        // dashes when the rest of putting was folded into the full shot.
+        // ...and a NEAR FADE on top of that, PRED_NEAR yards from the camera.
+        // In the placement cam the arc arrives from behind and runs clean
+        // through the eye, where a .1yd ribbon a few inches away covers half
+        // the screen. Fading it is the standard fix (the same idea as the
+        // "soft particle" depth fade, just against the camera instead of the
+        // depth buffer) and it cannot cost anything elsewhere: nothing else
+        // in the game ever comes within PRED_NEAR of the camera.
+        const c = packColor(new Color(1, 1, 1,
+            (clubI == CLUB_PUTTER && i&2 ? 0 : .5 - i/n*.3)
+            * clamp(Math.hypot(s.x-camX, s.y-camY, s.z-camZ)/PRED_NEAR)));
+        pts.push(vec3(s.x-rx*w, s.y+.1, s.z-rz*w), vec3(s.x+rx*w, s.y+.1, s.z+rz*w));
         cols.push(c, c);
     }
     glEnableFog = 0;
@@ -742,9 +842,8 @@ function pushTrailGL()
     {
         const s = trail[i];
         const age = (time - s.t)/TRAIL_LIFE;        // 0 fresh .. 1 expiring
-        const d = Math.hypot(s.x-camX, s.z-camZ);
-        const w = Math.max(.1, d*.003)*(1 - age);
-        const c = packColor(niceShot ? hsl((i + trailTotal)*.04, 1, .6, (1-age)*.8)
+        const w = .06*(1 - age);
+        const c = packColor(niceShot ? hsl((i + trailTotal)*.02, 1, .6, (1-age)*.8)
                                      : new Color(1, 1, 1, (1-age)/2));
         pts.push(vec3(s.x-rx*w, s.y+.1, s.z-rz*w), vec3(s.x+rx*w, s.y+.1, s.z+rz*w));
         cols.push(c, c);
@@ -790,21 +889,6 @@ const SKY_R = 5e3;
 // darkened patch offset from the trunk, so a very low angle turns it into a
 // smear instead of a shadow. .5 rad about 30 deg.
 const SHADOW_MIN_E = .5;
-// how many yards of the simulated putt path to draw
-// The putt preview line. LENGTH in yards, HALF-WIDTH in yards, physics
-// steps per dash, and the MAX LENGTH of one dash (or gap) in yards.
-// A dash is PUTT_DASH steps of real roll, so its length reads as SPEED -
-// dashes shrink as the ball dies, which is the design. The CAP is what
-// keeps that honest off the green (Frank, 2026-08-31): a putt from the
-// fairway launches at pin-distance pace, ~25yd/s from the tee, and one
-// 9-step dash covered 3.75 of the 5 preview yards - the whole line drew
-// as ONE dash, a solid stripe. Capped, a fast preview breaks into
-// .6yd dashes and the slow end still tapers.
-const PUTT_LINE = 5, PUTT_W = .1, PUTT_DASH = 9, PUTT_MAXDASH = .6;
-// Downhill arrows over the whole green. The simulated putt line shows the
-// break directly now, so these are the older and cruder version of the same
-// reading; 0 drops them from the build entirely (Closure folds the flag).
-const SLOPE_ARROWS = 0;
 const skyDir = (a, e)=> vec3(Math.sin(a)*Math.cos(e), Math.sin(e), Math.cos(a)*Math.cos(e));
 // Soft disc on the sky sphere, angular radius ang. squish < 1 flattens it
 // and rot spins that ellipse - a thin ellipse is a two-armed bar, so several
@@ -824,7 +908,7 @@ function pushSkyDisc(v, ang, color, squish=1, rot=0)
 function pushSkyBackGL()
 {
     const pts = [], cols = [], cap = [], haze = packColor(glFogColor),
-        hi = packColor(hslCol(H.pal.sky0));
+        hi = packColor(hslCol(hole.pal.sky0));
     for (let i=13; i--;)
     {
         // .524 = 2PI/12: i/2 left a 16-degree wedge of the circle unfilled
@@ -844,7 +928,7 @@ function pushSkyGL()
 {
     glEnableFog = 0;
     pushSkyBackGL();
-    const sun = skyDir(SUN_A, SUN_E), sunCol = hslCol(H.pal.sun);
+    const sun = skyDir(SUN_A, SUN_E), sunCol = hslCol(hole.pal.sun);
     // SUN STAR ARMS: three thin squished discs, each turned 60 degrees on
     // from the last, so the sun throws six rays. Drawn first, so the solid
     // disc and its halos sit on top of where the arms meet.
@@ -856,11 +940,12 @@ function pushSkyGL()
     pushSkyDisc(sun, .1, sunCol);
     pushSkyDisc(sun, .2, sunCol.scale(1, .7));
     pushSkyDisc(sun, .3, sunCol.scale(1, .5));
+    
     // clouds: rows of overlapping soft puffs parked at headings, drifting
     for (let i=7; i--;)
     for (let j=5+i%3; j--;)
-        pushSkyDisc(skyDir(i + time*.02 + j*.1, .3 + (i%3)*.2 + Math.sin(j*j+i+time*.02)*.04),
-            .2 + Math.sin(j**3)*.05, new Color(1, 1, 1, .7), .5); // .5 = squished flat
+        pushSkyDisc(skyDir(i + time*.02 + j*.1, .3 + (i%3)*.2 + Math.sin(j*j+i+time*.02)*.05),
+            .2 + Math.sin(j**3)*.05, new Color(1, 1, 1, .7), .5);
     glEnableFog = 1;
 }
 
@@ -873,50 +958,28 @@ function pushFlareGL()
 {
     const sun = skyDir(SUN_A, SUN_E), cp = Math.cos(camPitch);
     const fwd = vec3(Math.sin(camYaw)*cp, -Math.sin(camPitch), Math.cos(camYaw)*cp);
-    const k = clamp((fwd.x*sun.x + fwd.y*sun.y + fwd.z*sun.z - .5));
+    const k = clamp((fwd.x*sun.x + fwd.y*sun.y + fwd.z*sun.z - .4));
     if (!k) return;
 
     glEnableFog = 0;
-    for(let i=9; --i;)
+    for(let i=9; i--;)
     {
-        const t = i/16, s = .05 - Math.sin(i**5)*.04, h = i**2.3;
-        pushSkyDisc(sun.scale(1-t).add(fwd.scale(t)).normalize(), s, hsl(h, .9, .6, k));
+        const t = i/20+.2-Math.sin(i**3)*.05, s = .04 + Math.sin(i*i)*.03;
+        pushSkyDisc(sun.scale(1-t).add(fwd.scale(t)).normalize(), s, hsl(k/2+i/5, 1, .3, k));
     }
     glEnableFog = 1;
 }
 
-// debug (C key): the tree collision volumes flyStep tests - canopy sphere
-// (red) and trunk cylinder (yellow), translucent, drawn through the trees.
-// Dev/artifact only: 0 release bytes.
-let showColl = 0;
-function pushCollGL()
-{
-    for (const t of H.near)
-    {
-        // t.y IS the canopy centre now (course.js bakes trunkH into it), so
-        // the sphere sits AT t.y and the trunk column runs from the ground UP
-        // to it. Drawing either relative to the ground double-counted the
-        // trunk and floated both volumes.
-        const s = t.s, r = s*TRUNK_R, th = trunkH(t);
-        pushLathe(vec3(t.x, t.y, t.z), [[0,-s],[s*.7,-s*.7],[s,0],[s*.7,s*.7],[0,s]], 8, new Color(1,0,0,.35));
-        // flyStep's trunk test is `dy < 0` - unbounded downward - so the
-        // column is drawn over the part that can actually be reached
-        pushLathe(vec3(t.x, t.y - th, t.z), [[r,0],[r,th]], 8, new Color(1,1,0,.4));
-    }
-    // the pin post's strike volume (cyan): POST_R wide, cup up to POLE_H,
-    // exactly the window ballUpdate tests. It was missing here and Frank
-    // asked why the view showed trees but not the pole.
-    const g = heightAt(H.pin.x, H.pin.z);
-    pushLathe(vec3(H.pin.x, g, H.pin.z), [[POST_R, 0], [POST_R, POLE_H]], 8, new Color(0,1,1,.4));
-}
+// (showColl and pushCollGL - the C-key collision volumes - live in
+// debugGame.js; the call site below is the only thing left here)
 
-// Drop trees close to the ball: H.near is BOTH the drawn set and the
+// Drop trees close to the ball: hole.near is BOTH the drawn set and the
 // collision set, so what you see is what you hit. Called once per shot from
 // enterAim - re-baking on every aim change was 8ms and read as jitter.
 const HIDE_R = 18;
 function hideTrees()
 {
-    H.near = H.trees.filter(t => !(t.k & 1) && Math.hypot(t.x-ball.x, t.z-ball.z) > HIDE_R);
+    hole.near = hole.trees.filter(t => !(t.k & 1) && Math.hypot(t.x-ball.x, t.z-ball.z) > HIDE_R);
     if (!glContext) return; // headless (sim/unit): the filter is all that matters
     bakeNear();
 }
@@ -929,13 +992,12 @@ function renderViewGL()
     glPreRender();
     glSetBuffer(glStaticBuffer);
     glContext.drawArrays(gl_TRIANGLE_STRIP, 0, glStaticCount);
-    glContext.depthMask(0); // sky: tested against the world, never occludes itself (the sun/clouds only blend)
-    pushSkyGL();
-    glRender();
-    glContext.depthMask(1);
+    // OPAQUE dynamic props, writing depth like the world does
     pushPinGL();
     pushBallGL();
-    pushTrailGL();
+    if (state == ST_AIM || state == ST_SWING)
+        debug && gridAid ? pushLandingGridGL()      // G: the slope-grid experiment
+            : clubI == CLUB_PUTTER || pushLandingRingGL();
     if (debug && showColl)
     {
         // through everything: the sphere sits INSIDE the opaque canopy
@@ -945,16 +1007,27 @@ function renderViewGL()
         glRender();
         glContext.enable(gl_DEPTH_TEST);
     }
-    if (state == ST_AIM || state == ST_SWING)
-    {
-        clubI == CLUB_PUTTER ? pushPuttAidGL() : pushLandingRingGL();
-        debug && PRED_ARC && clubI != CLUB_PUTTER && pushPredGL();
-    }
     glRender();
+    // EVERYTHING TRANSPARENT LAST, AND WITH DEPTH WRITES OFF. The sky was
+    // always drawn this way; the trail and the shot line now join it, and
+    // that is the fix. Both are ribbons that cross themselves - a trail
+    // curving back, the shot line seen near edge-on - and while they wrote
+    // depth, the first segment to land on a pixel blocked every later one
+    // behind it and bit holes out of the ribbon.
+    // They all still depth-TEST, so the world and the props above occlude
+    // them exactly as before. They just stop occluding each other, and the
+    // sky loses to the props it is drawn after.
+    glContext.depthMask(0);
+    pushSkyGL();
+    pushTrailGL();
+    if (state == ST_AIM || state == ST_SWING)
+        pushPredGL();
+    glRender();
+    glContext.depthMask(1); // the next frame's world draw needs it back
     if (FLARE)
     {
-        // additive, alpha untouched (ZERO, ONE): the ghosts add onto the
-        // world and, through the compositor, onto the 2D sky too
+        // additive, alpha untouched (ZERO, ONE), and no depth test at all -
+        // the ghosts add onto whatever is already there
         glContext.disable(gl_DEPTH_TEST);
         glContext.blendFuncSeparate(gl_ONE, gl_ONE, 0, gl_ONE);
         pushFlareGL();

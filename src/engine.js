@@ -57,7 +57,7 @@ let engineObjectsCollide = [];
 /** Current update frame, used to calculate time
  *  @type {Number}
  *  @memberof Engine */
-let frame = 0;
+let frame = 0, drawn = -1;
 
 /** Current engine time since start in seconds
  *  @type {Number}
@@ -146,8 +146,6 @@ function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRender
         if (debug && debugVideoCaptureIsActive())
             frameTimeBufferMS = 0; // disable time smoothing when capturing video
 
-        updateCanvas();
-
         if (paused)
         {
             // update object transforms even when paused
@@ -192,9 +190,20 @@ function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRender
             frameTimeBufferMS += deltaSmooth;
         }
 
-        if (!headlessMode)
+        // ONE DRAW PER UPDATE, NEVER MORE. `frame` counts fixed updates, so
+        // on a screen faster than 60Hz this skips the frames that would come
+        // out pixel for pixel identical - every input to the scene is
+        // quantised to that step, so there is nothing new to show. Both
+        // canvases keep their contents, which is why updateCanvas above had
+        // to stop re-assigning their width: that wipes a canvas even when the
+        // size has not changed, and it ran at the top of every rAF.
+        if (!headlessMode && drawn != frame)
         {
-            // render sort then render while removing destroyed objects
+            drawn = frame;
+            // in here, not before the update loop: sizing a canvas WIPES it,
+            // so doing it on a frame that is not going to be drawn would
+            // blank the screen. Nothing reads the size on a skipped frame.
+            updateCanvas();
             glPreRender();
             gameRender();
             engineObjects.sort((a,b)=> a.renderOrder - b.renderOrder);
@@ -229,7 +238,20 @@ function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRender
     function updateCanvas()
     {
         if (headlessMode) return;
-        
+
+        // THE LAYOUT VIEWPORT, not innerWidth/innerHeight. innerWidth tracks
+        // the VISUAL viewport - the zoomable one - and on mobile it goes
+        // wrong after a rotation: measured in an emulated iPhone XR, rotating
+        // portrait->landscape->portrait left innerWidth/innerHeight reporting
+        // 898x1944 while the page was really 414x896. Sizing the canvas from
+        // that built one more than twice the viewport, which `margin:auto`
+        // then centred 524px off the top - Frank saw "only the middle left of
+        // the screen", and it stayed broken until a reload.
+        // documentElement.clientWidth/Height stayed correct throughout.
+        // (visualViewport was wrong too - 896x1939 - so it is no use here.)
+        const winW = document.documentElement.clientWidth;
+        const winH = document.documentElement.clientHeight;
+
         if (canvasFixedSize.x)
         {
             // clear canvas and set fixed size
@@ -237,7 +259,7 @@ function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRender
             glCanvas.height = canvasFixedSize.y;
             
             // fit to window by adding space on top or bottom if necessary
-            const aspect = innerWidth / innerHeight;
+            const aspect = winW / winH;
             const fixedAspect = glCanvas.width / glCanvas.height;
             glCanvas.style.width = overlayCanvas.style.width  = aspect < fixedAspect ? '100%' : '';
             glCanvas.style.height = overlayCanvas.style.height = aspect < fixedAspect ? '' : '100%';
@@ -245,10 +267,10 @@ function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRender
         else
         {
             // clear canvas and set size to same as window
-            glCanvas.width  = min(innerWidth,  canvasMaxSize.x);
-            glCanvas.height = min(innerHeight, canvasMaxSize.y);
+            glCanvas.width  = min(winW, canvasMaxSize.x);
+            glCanvas.height = min(winH, canvasMaxSize.y);
         }
-        
+
         // clear overlay canvas and set size
         overlayCanvas.width  = glCanvas.width;
         overlayCanvas.height = glCanvas.height;

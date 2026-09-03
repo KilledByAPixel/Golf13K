@@ -1,6 +1,6 @@
 'use strict';
 
-/*  RAINBOW GOLF TOUR - swing meter, clubs, ball physics
+/*  SUNSHINE GOLF CLASSIC - swing meter, clubs, ball physics
     Ball flight: launched from the range formula, then flown under real
     aerodynamics - drag along the air-relative velocity and lift across it.
     Bounce/roll on the course heightfield with per-surface restitution
@@ -12,87 +12,100 @@ const CLUBS =
     ['1W',235,11],['3W',215,14],['5W',198,17],['3i',183,19],['5i',168,22],
     ['7i',150,26],['9i',131,31],['13i',120,41],['PW',108,38],['SW',78,48],['PT',0,0]
 ];
-// The 13 IRON is the jam's number in the bag, and being invented it is the
-// one club that gets to break the ladder. Every other club is monotonic -
-// more loft, less distance - so a club dropped at the 9i/PW midpoint on
-// BOTH axes has no character at all; it is just the average of its
-// neighbours. So it keeps the midpoint distance (120yd, filling what was a
-// 23yd gap, the only real hole in a set otherwise spaced 15-20) and takes
-// MORE loft than the PW it outdrives: 41 degrees, launching at 48.
-// That makes it the drop-it-on-a-dime club - the highest flight and the
-// least roll of anything that reaches past a hundred yards. Physically odd
-// for a real bag, which is the joke, and it is the only club whose loft
-// does not follow from its number.
-// NOTE club gaps do not constrain play here the way they do in real golf:
-// the meter dials any distance under a club's max, so what a club really
-// chooses is a LAUNCH ANGLE - the arc, the descent and therefore the run.
+// THE 13 IRON is the jam's number in the bag, and the one club that breaks
+// the ladder on purpose. Every other club is monotonic - more loft, less
+// distance - so a club at the 9i/PW midpoint on both axes would have no
+// character at all. Instead it takes the midpoint DISTANCE (120yd, filling
+// the set's one real gap) with MORE loft than the PW it outdrives, which
+// makes it the drop-it-on-a-dime club: the highest flight and the least run
+// of anything reaching past a hundred yards.
+// NOTE club gaps do not constrain play the way they do in real golf - the
+// meter dials any distance under a club's max, so what a club really picks
+// is a LAUNCH ANGLE, and with it the arc, the descent and the run.
 const CLUB_PUTTER = 10;
+// The putter's full-power roll, in yards of GREEN - its entry in the club
+// table's distance column, in effect, which is why targetMax reports it and
+// the putt prediction launches at power*PUTT_MAX. The lie is NOT baked in:
+// puttVel always solves speed against the green's friction, so "40" means
+// 40 yards of green wherever the ball is standing, and what the ground
+// actually gives back is the prediction's business now.
+const PUTT_MAX = 40;
+// How far PAST the cup resetTarget sets the bar's top, as a multiple of the
+// putt. Frank's knob, and it MUST stay above 1: a bar topping out exactly at
+// the cup can only be missed short, since every stroke that is not perfect
+// at the very top of the meter falls under it. At 1.2 the cup marker lands
+// around 82% of the bar with real room either side - which is also what puts
+// that marker on screen at all, since it is only drawn when it fits.
+const PUTT_OVER = 1.2;
+// How hard a mis-timed second click PUSHES a putt offline. It needs its own
+// number because push/pull is an ANGLE: the .05 every other club uses is ten
+// yards of miss on a 200yd drive and two CENTIMETRES on a ten yard putt, so
+// sharing it left the second click doing nothing measurable at all.
+// MEASURED at .75, whether the putt drops - P perfect, G good (.05), B bad:
+//   1-2yd   PGB   tap-ins are safe even off a bad stroke
+//   3-6yd   PG-   a good stroke drops, a sloppy one does not
+//   10-16yd P--   long putts want a near-perfect strike
+// That is golf's own curve and it has no cliff in it: nothing becomes
+// unmakeable, and the putts you are expected to hole stay holeable.
+// Raise to punish more, .25 to go back to gentle. Between .5 and .75 the
+// make/miss outcomes are IDENTICAL and only the visible curve grows, so
+// pick from that range by how much bend you want to SEE.
+// The two sides are not symmetric: impact runs -METER_OVER..meterPower, so a
+// LATE click is capped at -.13 while an early one can be several times that.
+// Hooks are bounded, slices are not.
+const PUTT_PUSH = .75;
 const GRAV = 11;         // yards/s^2
-// REAL SIZES, then ONE exaggeration. The ball and cup had drifted to 5.6x
-// and 8.5x life size independently, so the hole read half again too big FOR
-// THE BALL - that mismatch, not the size itself, is what looked wrong. Both
-// now come off the same PROP_SCALE, so the cup is always 2.5x the ball
-// exactly as in real golf, and one number moves them together.
-// Broadcast golf games keep true sizes and use a long lens instead; this
-// camera is 87 degrees vertical, about as wide as a lens gets, which is why
-// true size read as tiny. MEASURED at 900px tall, and as the share of DEAD
-// STRAIGHT putts that drop at 3 / 8 / 15yd:
+// REAL SIZES, then ONE exaggeration. Ball and cup both come off PROP_SCALE,
+// so the cup stays 2.5x the ball exactly as in real golf and one number
+// moves them together - scaling them independently is what makes a hole look
+// wrong for its ball. Broadcast golf keeps true sizes and uses a long lens;
+// this camera is 87 degrees vertical, about as wide as a lens gets, which is
+// why life size reads as tiny here.
+// MEASURED at 900px tall, and as the share of dead straight putts that drop
+// at 3 / 8 / 15yd:
 //        ball across   ball px @16yd  @5yd    straight putts
 //   1x     .047yd          1.4          4.4    69% / 36% / 20%
 //   2x     .093            2.8          8.8    81% / 53% / 28%
 //   3x     .140            4.1         13.2    94% / 60% / 36%   <- here
 //   4x     .187            5.5         17.7    98% / 62% / 40%
-//   5.6x   .262            7.7         24.7   100% / 66% / 40%  (the old ball)
-// The FLAGSTICK is not scaled: at 7ft it is a big object already, and 3x
-// would make it a 21ft pole. Exaggerate what is too small to see, not what
-// is not.
+// The FLAGSTICK is deliberately NOT scaled: at 7ft it is a big object
+// already and 3x would make it a 21ft pole. Exaggerate what is too small to
+// see, not what is not.
 const PROP_SCALE = 3;
 const HOLE_R = .059*PROP_SCALE;   // a 4.25in cup, in yards
 const BALL_R = .0233*PROP_SCALE;  // a 1.68in ball
-// 2.3, not 2.33: real sizes are not ROUND, and that is what a size pass
-// costs in a 13k build - the pin's numbers went from 4 / 1 / .1 / 2 to
-// 2.33 / .58 / .058 / 1.17 and cost 7 bytes for digits nobody can see.
-// Rounded to a tolerance the eye cannot resolve, they give it back.
-// NOT worth doing to HOLE_R and BALL_R though: replacing .059*PROP_SCALE
-// with a flat .18 measured +6, because the shared PROP_SCALE token packs
-// better than two independent literals.
+// 2.3, not the true 2.33 - real sizes are not round, and a 13k build pays
+// for every digit nobody can see. Round anything the eye cannot resolve.
+// (HOLE_R and BALL_R are the exception: they SHARE the PROP_SCALE token,
+// which packs better than two independent literals would.)
 const POLE_H = 2.3;               // a 7ft flagstick, at life size
-// the flagstick's strike radius. Was .2 - wider than the cup reads and
-// chunky against a pole DRAWN at .04-.16 (it is distance-compensated);
-// Frank called it a bit big even for a helpful obstacle. Ball radius is
-// effectively included, so .15 still catches everything but a graze.
+// The flagstick's strike radius, kept UNDER what the pole draws at
+// (.04-.16, distance-compensated) so it never feels like a hidden wall.
+// Ball radius is effectively included, so .15 catches all but a graze.
 const POST_R = .15;
-// The cup's LIP: a local height term far finer than the terrain mesh, felt
-// by the roll and never drawn. Being a height and not a pull, it composes
-// with a green that tilts AWAY from the hole.
-// It is DELIBERATELY NOT TIED TO HOLE_R. The lip is not a real object - it
-// is the game's forgiveness, invisible and tuned - and it has to be RE-TUNED
-// whenever the cup changes size, which is how .3 came to be too generous:
-// it was set to rescue a true-size .059 cup, then PROP_SCALE made the cup
-// three times bigger and the rescue stayed.
-// R is how far the funnel reaches, D how deep. MEASURED against today's
-// .177 cup, as make rate on a DEAD STRAIGHT putt at 3 / 8 / 15yd, and the
-// total lateral yards you can miss by and still drop:
-//   R   D        made              forgiveness
-//   .9  .3    94% / 60% / 36%    1.48 / 1.32 / 1.05   (was here)
-//   .9  .2    88% / 47% / 36%    1.27 / 1.07 / 0.83   (then here)
-//   .6  .2    90% / 47% / 24%     .99 /  .75 /  .70
-//   .9  .15   88% / 47% / 28%     .51 /  .50 /  .56
-//   none      71% / 38% / 16%     .35 /  .35 /  .34
-// NOTE those rows predate the drag/lift flight and the green softening -
-// treat them as SHAPE, not truth. RE-MEASURED 2026-08-31 under the
-// current physics (exact-pace straight putts, lateral miss tolerance):
-//   .9  .2    forgiveness .48 / .44 / .40
-//   .9  .1    forgiveness .40 / .40 / .36   <- here (Frank: rescues that
-//             "should not have made it" kept dropping; dead-straight
-//             putts still make 100%)
-// NOTE THE CLIFF between D .2 and .15: the make rate barely moves but
-// forgiveness halves. Below about .2 the funnel stops catching a ball that
-// would otherwise roll past the cup and only helps one already dropping in,
-// so it is two different mechanisms rather than one dial. Reach for LIP_R
-// to rein in LONG putts specifically - it is what takes 15yd from 36% to
-// 24% while leaving 3yd alone.
-const LIP_R = .9, LIP_D = .1;
+// THE CUP'S LIP: a local height term finer than the terrain mesh, felt by
+// the roll and never drawn. Being a HEIGHT rather than a pull, it composes
+// with a green that tilts away from the hole. R is how far the funnel
+// reaches, D how deep.
+// IT IS A LOOK, NOT A DIFFICULTY. RE-MEASURED under the three-click putt at
+// the pace players actually strike (the bar sits PUTT_OVER past the hole, so
+// the ball crosses the cup at 3-6yd/s and is barely in the funnel): lateral
+// forgiveness is .19yd for EVERY combination below, against a cup radius of
+// .177. The lip is worth about half an inch of tolerance and nothing else.
+// What it really does is BEND a passing putt, which is what reads as the
+// hole sucking balls in. MEASURED on a 10yd putt aimed wide, as the yards it
+// drags the ball off its own aim line:
+//        aimed .25 wide   .40   .60
+//   .9 .10      .22       .30   .28   <- the old magnet: it pulled from 2ft
+//   .9 .04      .09       .12   .11
+//   .4 .06      .18       .00   .00   <- here
+//   .3 .06      .09       .00   .00
+// R sets the REACH and D the strength - but the gradient divides by R, so
+// shrinking R alone makes the funnel STEEPER. Move both, or only D.
+// Since none of it changes what drops, tune it by eye. To make putting
+// genuinely harder the knob is the CUP, not this: forgiveness tracks HOLE_R
+// almost exactly (PROP_SCALE 3 -> .19, 2.5 -> .16, 2 -> .13).
+const LIP_R = .4, LIP_D = .06;
 // how fast the ball may cross the cup and still drop, yards/second
 const CUP_SPEED = 8;
 // The cup is wider to a ball coming DOWN into it than to one rolling
@@ -129,67 +142,80 @@ const WIND_V = 1.4;
 // whole bag back on its labels, which is the only reason the club numbers
 // can stay honest with real aerodynamics underneath them.
 const DRAG_K = .004, LIFT_K = .0015;
-// The launch overshoots by this much so drag can take it back. Sub-linear -
-// more speed means more drag - so it is fitted, not derived: 1.27 left every
-// club 5-9% short, 1.43 lands the bag inside 4%.
-const CARRY_K = 1.43;
+// The launch overshoots so drag can take it back, by 1 + CARRY_K*q where q
+// is the fraction of the club's FULL flight being asked for (power x lie).
+// Drag's bite grows with speed, so a fixed factor fitted at full power
+// (1.43 until 2026-09-02) over-threw every softer shot: MEASURED on a flat
+// fairway, a half-power swing flew 18-21% long with every club, a quarter
+// swing 30%, a full swing from rough (lie .7) 10% and from sand (.55) 16-19%
+// - so the rough really cost 23% and the sand 36%, not the 30/45 the table
+// says, and the meter was linear in yards only at its very top. Linear in q
+// is the fit: swept .38-.48, .4 has the lowest rms (2.4%, worst 5.5%) and
+// leaves full swings 1-3% under their labels where 1.43 had them 1% over.
+const CARRY_K = .4;
 const LIFT_SPIN = .001;
-// SPIN IS A LAUNCH ANGLE, not a force. Degrees of loft added for backspin
-// and taken away for topspin.
-// This replaced a gravity bend (SPIN_LIFT) on 2026-08-31. Bending gravity
-// changes the ARC and the CARRY together, so backspin flew higher AND
-// further and no amount of tuning separated them - it kept coming back as a
-// free upgrade, and cancelling the carry with a power penalty flattened the
-// arc right back out (MEASURED: apex 19.0 / 18.9 / 18.9, no arc left).
-// Loft decouples them for free, because launchVel solves velocity FROM the
-// angle to hit the club's stated carry: change the angle and the carry is
-// held automatically, while apex = carry*tan(angle)/4 moves a long way.
-// MEASURED at 8 degrees, driver, flat and calm - carry / run / apex:
-//   back  235.1 /  4.8 / 28.4
-//   none  235.5 / 18.1 / 18.9
-//   top   236.9 / 40.4 / 10.2
-// which is the whole design in one table: land in the same place, then
-// stop dead or run away, on a visibly different flight.
+// SPIN IS A LAUNCH ANGLE, not a force: degrees of loft added for backspin
+// and taken away for topspin. That is what DECOUPLES arc from carry, and it
+// is free - launchVel solves velocity FROM the angle to hit the club's
+// stated carry, so changing the angle holds the carry automatically while
+// apex = carry*tan(angle)/4 moves a long way.
+// Anything that bends GRAVITY instead moves both together, and no tuning
+// separates them: backspin flies higher AND further, and cancelling the
+// carry with a power penalty flattens the arc straight back out.
+// That was exactly true in a vacuum. Under real drag and lift (flyStep) the
+// loft change also changes hang time, so the carry MOVES with spin, and not
+// the same way across the bag. MEASURED 2026-09-02, flat fairway, calm, full
+// power - carry / run / apex:
+//   1W   back 224.9 /  6.1 / 48.4   none 233.7 / 21.4 / 31.2   top 219.4 / 56.9 / 14.1
+//   7i   back 142.9 /  5.0 / 44.5   none 149.2 / 17.6 / 32.2   top 145.8 / 32.8 / 21.2
+//   SW   back  71.0 /  3.2 / 47.3   none  80.5 / 11.4 / 34.9   top  83.8 / 21.0 / 25.8
+// Backspin carries 4% short on the long clubs and 12% short on the SW (the
+// extra loft costs a wedge more than the extra lift repays); topspin is 6%
+// short on the driver but 4% LONG on the wedges, whose lower launch lands
+// nearer the 45-degree optimum. The aim preview flies the same integrator,
+// so the ring and the chip show whichever it is. Frank's knob if the skew
+// ever matters: a smaller SPIN_LOFT for the lofted clubs, or LIFT_SPIN up.
 const SPIN_LOFT = 8;
 
 // per-surface: [bounce restitution, bounce keep, roll friction, power mult]
-// FAIRWAY/TEE .32/.52 is the value the table REALLY holds, on purpose.
-// The history reads like a contradiction without the order: on 2026-08-31
-// morning these were cut to .22/.30 (under the OLD no-drag flight a
-// driver bounce-ran 52yd and finished 22% past the aim ring), and then
-// real drag+lift landed the SAME DAY (052f0b5) - landing speed and angle
-// changed under every club and the bounce was deliberately refitted BACK
-// to .32/.52. Do not "fix" the table toward the cut values; that cut was
-// for a flight model that no longer exists. The run table below was
-// MEASURED under the OLD model - re-measure (RANGE() + X) before using
-// it to tune. 1W / 5i / PW run:
-//   .32/.52   52 / 35 / 22   (total 287)  <- here since the refit; the
-//                                            old-model numbers, not today's
-//   .32/.30   25 / 18 / 11   (total 260)
-//   .22/.30   18 / 12 /  7   (total 254)  <- the superseded morning cut
-//   .22/.20   11 /  8 /  5   (total 246)
-// THE GREEN was softened from .30/.55 on 2026-08-31, once drag and lift
-// made approach shots real. It had been BOUNCIER than the fairway, which is
-// backwards, and under the new flight a wedge landing on a green ran 15
-// yards - further than most greens are deep, so backspin stopped being a
-// choice and became compulsory on every approach. MEASURED roll on a green,
-// 7i / PW / SW, no spin then backspin:
-//   .30/.55   18.7 / 15.5 / 11.9    3.1 / 2.0 / 1.1   (was here) sim +2
-//   .26/.45   13.4 / 10.1 /  7.8    2.1 / 1.4 / 0.8   <- here      sim +5
-//   .22/.35    8.0 /  6.4 /  4.9    1.3 / 0.8 / 0.5               sim +9
+// Bounce is FITTED TO THE CURRENT FLIGHT and nothing else. Landing speed and
+// angle move under every club whenever drag or lift change, so re-measure
+// with RANGE() + X before tuning either of the first two columns - a value
+// carried over from a different flight model is worse than no value.
+// THE GREEN must stay softer than the fairway. Bouncier greens are backwards
+// and, worse, make backspin compulsory: a wedge that runs 15yd on landing
+// runs further than most greens are deep, so there is no shot to choose.
+// MEASURED roll on a green, 7i / PW / SW, no spin then backspin:
+//   .30/.55   18.7 / 15.5 / 11.9    3.1 / 2.0 / 1.1   sim +2
+//   .26/.45   13.4 / 10.1 /  7.8    2.1 / 1.4 / 0.8   <- here, sim +5
+//   .22/.35    8.0 /  6.4 /  4.9    1.3 / 0.8 / 0.5   sim +9
 //   .15/.25    3.6 /  3.0 /  2.3    0.6 / 0.4 / 0.2
-// .22/.35 is the more realistic green and .26/.45 the safer one: halving
-// the roll is what fixes the compulsion, and the rest is firmness taste.
-// Receptive, not dead: a mid iron still releases and has to be flown short
-// of a back pin, while backspin checks it up inside a yard. Bounce does not
-// touch putting - a putt rolls, and roll friction (column 3) is unchanged.
+// .22/.35 is the more realistic green and .26/.45 the safer one; halving the
+// roll is what removes the compulsion, the rest is firmness taste. Receptive,
+// not dead - a mid iron still releases and has to be flown short of a back
+// pin, while backspin checks it inside a yard.
+// None of this touches putting: a putt rolls, and roll friction is column 3.
+// COLUMN 4 IS WHAT THE LIE COSTS THE CARRY, and since p278 it costs exactly
+// that (the fixed 1.43 overshoot used to hand softer launches 10-19% back,
+// so .7 played as .77 and .55 as .64). Frank, 2026-09-02, before playing
+// the fix: the rough was already tough and must not get harder - so .8 and
+// .65, a hair easier than what shipped rather than the table's old promise.
+// THE ROUGH'S LANDING (row 1, columns 1-3) was .22/.32/14 until 2026-09-02:
+// Frank, hitting up over a hill out of it: the ball "basically sticks as
+// soon as it hits the ground". MEASURED, a 7i landing in rough - run after
+// the carry, flat / on a 25% upslope, against 17.4 / 10.5 on fairway:
+//   .22/.32/14    5.2 /  3.0   a half swing 3.1 / 1.3  <- was: no hop at all
+//   .26/.40/10    8.0 /  4.4              4.9 / 2.0   <- here, half of fairway
+//   .30/.45/8    11.1 /  6.0              6.6 / 2.7   two thirds of fairway
+// A ball flown into a 60% face out of rough STAYS on the face in every row
+// (friction 8+ holds a 60% grade); a fairway ball rolls back to the bottom.
 const SURF_PHYS =
 [
-    [.22,.32,14, .7 ], // rough
+    [.26,.4,10, .8 ], // rough
     [.32,.52, 6,  1 ], // fairway
     [.26,.45, 3,  1 ], // green
     [.32,.52, 6,  1 ], // tee
-    [.05,.20,30, .55], // bunker
+    [.05,.20,30, .65], // bunker
     [ 0,  0,  0,  1 ], // water (splash)
     [.25,.45,14,  1 ], // OB
 ];
@@ -240,7 +266,7 @@ let ballSafe = {x:0,z:0}; // last point over safe ground - hazard drop spot
 // the ground under the ball, the ball's spot as a record, distance to the pin
 const ballGround = ()=> groundAt(ball.x, ball.z);
 const ballXZ = ()=> ({x: ball.x, z: ball.z});
-const ballToPin = ()=> Math.hypot(ball.x-H.pin.x, ball.z-H.pin.z);
+const ballToPin = ()=> Math.hypot(ball.x-hole.pin.x, ball.z-hole.pin.z);
 
 // Closest approach of this step's PATH (x0,z0 -> b) to a point, in 2D.
 // The whole segment is tested, not just where it ended: the ball covers
@@ -257,7 +283,7 @@ function pathDist(b, x0, z0, px, pz)
     segT = l2 ? clamp(((px-x0)*dx + (pz-z0)*dz)/l2) : 0;
     return Math.hypot(px-x0-dx*segT, pz-z0-dz*segT);
 }
-const cupHit = (x0, z0, r=HOLE_R)=> pathDist(ball, x0, z0, H.pin.x, H.pin.z) < r;
+const cupHit = (x0, z0, r=HOLE_R)=> pathDist(ball, x0, z0, hole.pin.x, hole.pin.z) < r;
 
 // ball trail: recent positions with timestamps. The renderer draws a ribbon
 // through them whose alpha fades with age, and trailPrune drops expired
@@ -306,19 +332,17 @@ const MET_POWER = 1, MET_SWING = 2, MET_CANCEL = 3;
 // wider than the sweet spot's whole half-width - so clicking dead centre of
 // the painted band scored .0208 LATE and the band's entire lower half could
 // not produce a perfect strike at all.
-function meterUpdate(clicked, isPutt)
+// EVERY CLUB TAKES THE SAME THREE CLICKS since 2026-09-01, the putter
+// included: Frank's call, once the putt had a distance to set. A putt is
+// aimed for accuracy like anything else now, so the second click matters
+// and a pushed stroke misses the hole.
+function meterUpdate(clicked)
 {
     if (meterPhase == 1)
     {
         if (clicked)
         {
             meterPower = meterPos();
-            if (isPutt)
-            {
-                meterPhase = 0;
-                meterImpact = 0;
-                return MET_SWING;
-            }
             // The sweep starts from the power mark and only ever falls.
             // Letting it run back UP to the top when the power was taken on
             // the way down was tried on 2026-08-30 and reverted the same
@@ -359,8 +383,8 @@ function meterUpdate(clicked, isPutt)
 // (+7deg of loft so the flight climbs like a real one), power scales it
 function launchVel(b, clubI, dir, lieMul, power=1, spin=0)
 {
-    const c = CLUBS[clubI], la = (c[2] + 7 - spin*SPIN_LOFT)*Math.PI/180;
-    const v = Math.sqrt(c[1]*CARRY_K*lieMul*GRAV/Math.sin(2*la)*power);
+    const c = CLUBS[clubI], la = (c[2] + 7 - spin*SPIN_LOFT)*Math.PI/180, q = lieMul*power;
+    const v = Math.sqrt(c[1]*q*(1 + CARRY_K*q)*GRAV/Math.sin(2*la));
     b.vx = Math.sin(dir)*Math.cos(la)*v;
     b.vy = Math.sin(la)*v;
     b.vz = Math.cos(dir)*Math.cos(la)*v;
@@ -378,24 +402,37 @@ function shotBegin(air, dir)
     shotDir = dir;
 }
 
+// THE ONE LAUNCH, putter included. power is a fraction of the club's max
+// from this lie (shotPower gives it), so for the putter it scales PUTT_MAX
+// and lands on exactly the yards the bar promised. The impact error is read
+// the same way for every club, which is what makes a putt missable: a
+// pushed stroke goes offline and a mistimed one comes up short.
 function launchBall(clubI, power, impact, spin, dir, lieMul)
 {
+    const putt = clubI == CLUB_PUTTER;
     // snap tiny errors to perfect, scale the rest
     const err = Math.abs(impact) < .02 ? 0 : impact;
-    // A miss either way loses power, and TOPSPIN gives some up on purpose:
-    // the loft change alone holds every carry equal, and Frank wants topspin
-    // to buy its roll rather than be handed it. MEASURED on hole 1 at 6%,
-    // carry / roll: back 237.7 / 4.9, none 239.7 / 18.8, top 226.9 / 44.4 -
-    // so it trades 13yd of flight for 26yd of run. Do not push it to 10%:
-    // topspin's total falls back level with no spin and the trade vanishes.
-    power *= 1 - Math.max(err, -err)*.35; // a miss either way loses power
-    dir += err*.05;     // push/pull
+    // A miss either way loses power. There is NO spin term here any more:
+    // the 6% topspin penalty went with the real-drag prototype (74708aa),
+    // because under real drag and lift the loft change no longer holds the
+    // carry equal by itself - see the table at SPIN_LOFT for what spin does
+    // to carry now, club by club.
+    power *= 1 - Math.max(err, -err)*.35;
+    // push/pull. An ANGLE, so a putt needs its own - see PUTT_PUSH
+    dir += err*(putt ? PUTT_PUSH : .05);
     ballCurve = err*22; // hook/slice curve accel
     ballSpin = spin;
-    shotBegin(1, dir);
-    // spin goes in as LOFT, so the carry is held and only the arc moves
-    launchVel(ball, clubI, dir, lieMul, Math.max(.05, power), spin);
-    ball.y = ballGround().h + .1;
+    shotBegin(!putt, dir);
+    if (putt)
+        // yards, not a speed: puttVel owns the v = sqrt(2fd) conversion, so
+        // the bar stays linear in distance
+        puttVel(ball, power*PUTT_MAX, dir);
+    else
+    {
+        // spin goes in as LOFT, so the carry is held and only the arc moves
+        launchVel(ball, clubI, dir, lieMul, Math.max(.05, power), spin);
+        ball.y = ballGround().h + .1;
+    }
     return err;
 }
 
@@ -417,6 +454,12 @@ function puttVel(b, dist, dir)
     return b;
 }
 
+// A putt asked for in YARDS, with no meter and no error. The PLAYER no
+// longer comes through here - launchBall takes every club since the meter
+// unified - so this is the BOT's putt and the unit tests', which is why the
+// release build drops it: botSwing is behind `debug` and nothing else calls
+// it. Keeping the bot on a clean stroke also keeps `npm run sim` measuring
+// the COURSE rather than the meter, which is what its band is calibrated to.
 function launchPutt(dist, dir)
 {
     ballSpin = ballCurve = 0; // a lip-out flies; no stale spin or curve there
@@ -434,17 +477,20 @@ function launchPutt(dist, dir)
 // draws this same number, so what it shows is what the ball hits.
 const TRUNK_R = .22;
 
-// one step of flight for b (the ball, or predictLanding's scratch copy):
-// gravity, wind, and the hook/slice curve across the shot direction. Spin
-// does not appear here - it is baked into the launch angle (see SPIN_LOFT)
-function flyStep(b, curve)
+// one step of flight for b (the ball, or a scratch copy): gravity, wind,
+// and the hook/slice curve across the shot direction. Spin does not appear
+// as spin here - it is baked into the launch angle (see SPIN_LOFT) and into
+// lift below. wv is the AIR's speed and defaults to the hole's wind; the aim
+// preview passes 0, which is how it flies this same integrator through still
+// air (spin it sets in ballSpin, which is where the swing would put it too).
+function flyStep(b, curve, wv = hole.wind.s*WIND_V)
 {
     // Velocity RELATIVE TO THE AIR, which is the only thing either force
     // acts on. Wind is a real air velocity now, so one pair of terms does
     // every job at once: drag slows the ball in still air, drags it toward
     // the air when the air is moving, and lift holds it up.
-    const ry = b.vy, wv = H.wind.s*WIND_V;
-    const rx = b.vx - Math.sin(H.wind.a)*wv, rz = b.vz - Math.cos(H.wind.a)*wv;
+    const ry = b.vy;
+    const rx = b.vx - Math.sin(hole.wind.a)*wv, rz = b.vz - Math.cos(hole.wind.a)*wv;
     const sp = Math.hypot(rx, ry, rz), vh = Math.hypot(rx, rz) || 1;
     const d = DRAG_K*sp*DT;
     // LIFT is perpendicular to the airflow in the vertical plane, and it is
@@ -464,7 +510,7 @@ function flyStep(b, curve)
     else if (b == ball)
     {
     const x0 = b.x - b.vx*DT, z0 = b.z - b.vz*DT;
-    for (const t of H.near)
+    for (const t of hole.near)
     {
         const dx = b.x-t.x, dz = b.z-t.z, dy = b.y-t.y, r2 = dx*dx+dz*dz, s2 = t.s*t.s;
         // only a ball moving INTO the volume is stopped (the dot uses the
@@ -524,7 +570,7 @@ function rollStep(b)
         b.vx *= k; b.vz *= k;
     }
     // the lip, added to the gradient before the move so it steers this step
-    const cx = b.x-H.pin.x, cz = b.z-H.pin.z, cd = Math.hypot(cx, cz);
+    const cx = b.x-hole.pin.x, cz = b.z-hole.pin.z, cd = Math.hypot(cx, cz);
     if (cd < LIP_R && cd > .01)
     {
         const u = cd/LIP_R;
@@ -570,7 +616,7 @@ function ballUpdate()
             // ...and only up the DRAWN stick: the window was g.h+3 while
             // the pole is 2.3 tall, so 0.7yd of invisible pole struck balls
             if (!pinHit && !pinOut && ball.y < g.h + POLE_H && cupHit(x0, z0, POST_R)
-                && (x0-H.pin.x)*ball.vx + (z0-H.pin.z)*ball.vz < 0)
+                && (x0-hole.pin.x)*ball.vx + (z0-hole.pin.z)*ball.vz < 0)
             {
                 // ONCE PER SHOT: the ball tunnels through, reflects onto the
                 // far side and crosses back, and every crossing is a genuine
@@ -630,7 +676,19 @@ function ballUpdate()
             keep *= 1 + ballSpin*.7;
             if (g.s == SURF_GREEN && ballSpin < 0)
             {
-                // backspin sucks back
+                // backspin sucks back - in intent. This runs BEFORE the keep
+                // multiply below, so what it really subtracts is 7*keep =
+                // 7*.45*.3 = .95yd/s, a foot of roll-back at most. MEASURED
+                // 2026-09-02 on a flat green: NO club ever finishes behind
+                // its landing spot with backspin (the run is +.8 for the SW
+                // to +2.8 for the driver). Moved AFTER the keep it would do
+                // what it says - measured there, the run for 1W / 7i / PW /
+                // SW at full power and a 10yd wedge chip:
+                //   7   -5.2 / -6.0 / -7.1 / -8.1, chip -4.7   (far too much)
+                //   3     .1 /  -.6 / -1.4 / -2.2, chip -1.4
+                //   2    1.4 /   .7 /   .0 /  -.7, chip  -.7
+                // Frank's call: leave it, cut it for the bytes, or move it
+                // with a 2-3 in place of the 7.
                 ball.vx += Math.sin(shotDir)*ballSpin*7;
                 ball.vz += Math.cos(shotDir)*ballSpin*7;
             }
@@ -694,32 +752,65 @@ function autoClub()
             return i;
 }
 
-// The full flight, integrated. It no longer feeds the aim: the ring marks
-// where you AIMED, at shotTarget yards, and reading the wind is the player's
-// job (Frank, 2026-08-30). Only the debug arc calls this now, so the release
-// build drops it and everything below it that nothing else uses.
-// The flight path predictLanding just walked, sampled - debug only, and the
-// arc it draws is the SAME integrator the ball will fly, so it cannot
-// disagree with the shot the way a separate approximation would.
+// THE AIM PREVIEW, and the whole of it: the full flight integrated down to
+// the ground, returning where it lands and leaving the PATH it took in
+// predPath. Everything the player sees while aiming comes from this one
+// flight - the arc is predPath drawn, the ring sits on the return value, and
+// the yardage on the chip is the distance to it - so none of them can
+// disagree with each other or with the shot (Frank, 2026-09-01: "it doesn't
+// always line up with the hit location", and it changed nothing when spin
+// changed the trajectory. Now spin moves all three at once).
+// FLOWN IN STILL AIR (the 0 passed to flyStep). Reading the wind is the
+// player's job and the arrow is there for it - Frank cut the wind-aware
+// predictive ring on 2026-08-30 to keep it that way.
 let predPath = [];
 function predictLanding(clubI, dir, spin, lieMul, power=1)
 {
-    // start from heightAt, NOT ballGround: a bunker's groundAt is .5yd
-    // below the terrain (the scoop) while the loop below ends against
-    // heightAt, so a sand shot began already under its own finish line and
-    // the ring stuck to the ball
+    // A PUTT is the same question put to the other integrator: it rolls
+    // instead of flying, so it walks rollStep to a standstill and the
+    // "landing" is where it stops. That is what lets putting share the ring,
+    // the yardage, the target cam and the meter scale with every other club
+    // (Frank, 2026-09-01) - and it means the number now accounts for the LIE
+    // and the SLOPE by simulating them, where it used to be a friction-ratio
+    // estimate that could only guess at the first and knew nothing of the
+    // second. Break included: this is the line the ball will actually take.
+    if (clubI == CLUB_PUTTER)
+    {
+        const b = puttVel({x: ball.x, y: ball.y, z: ball.z}, power*PUTT_MAX, dir);
+        // counts UP, unlike the flight below, so that i=0 samples the ball
+        // itself and the path needs no separate seed (the flight counts down
+        // to 0 and so has to be seeded, or it starts four steps out)
+        predPath = [];
+        rollRest = 0;
+        for (let i=0; i<600 && !rollRest; ++i)
+        {
+            !(i%5) && predPath.push({x: b.x, y: b.y, z: b.z});
+            rollStep(b);
+        }
+        // the resting place itself, so the dashes run into the middle of the
+        // ring exactly as the flight arc does
+        predPath.push({x: b.x, y: b.y, z: b.z});
+        return b;
+    }
+    // start from heightAt, which is what the loop below lands against. (The
+    // bunker scoop this once guarded against lives in heightAt itself now,
+    // so groundAt().h and heightAt agree everywhere but water; the ball's own
+    // y would serve as well.)
     const b = launchVel({x: ball.x, y: heightAt(ball.x, ball.z) + .1, z: ball.z}, clubI, dir, lieMul, power, spin);
+    // fly the spin it was ASKED for, not whatever the last real shot left in
+    // ballSpin: it launches with spin as loft, so it must lift with it too
+    ballSpin = spin;
     // SEED IT AT THE BALL. The loop below samples every fifth step and 599
     // is not a multiple of 5, so the first point it caught was four steps
     // out - about 4yd on a driver - and the ribbon visibly started in mid
     // air ahead of the ball.
-    debug && PRED_ARC && (predPath = [{x: b.x, y: b.y, z: b.z}]);
+    predPath = [{x: b.x, y: b.y, z: b.z}];
     let d0 = .1; // height above the ground, carried from the last step
     for (let i=600; i--;)
     {
         const x0 = b.x, z0 = b.z;
-        debug && PRED_ARC && !(i%5) && predPath.push({x: b.x, y: b.y, z: b.z});
-        flyStep(b, 0);
+        !(i%5) && predPath.push({x: b.x, y: b.y, z: b.z});
+        flyStep(b, 0, 0);
         const d1 = b.y - heightAt(b.x, b.z);
         if (d1 <= 0)
         {
@@ -737,6 +828,13 @@ function predictLanding(clubI, dir, spin, lieMul, power=1)
                 const t = d0/(d0 - d1);
                 b.x = lerp(x0, b.x, t);
                 b.z = lerp(z0, b.z, t);
+                // END THE LINE ON THE GROUND, at the exact point the ring is
+                // about to be drawn. Sampling every fifth step alone left the
+                // ribbon finishing up to 2.5yd short and hanging in the air
+                // beside the ring instead of running into it. (The step ended
+                // UNDER the ground, which is why y needs lifting back to it.)
+                b.y = heightAt(b.x, b.z);
+                predPath.push({x: b.x, y: b.y, z: b.z});
                 break;
             }
             b.y -= d1;  // still climbing: skim up the face and fly on

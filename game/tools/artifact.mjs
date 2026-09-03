@@ -22,7 +22,7 @@ const files =
     eng('engineParticles.js'), eng('engineMedals.js'),
     eng('engine.js'),
     join(root, 'course.js'), join(root, 'golfSim.js'), join(root, 'glRender.js'), join(root, 'view3d.js'),
-    join(root, 'sfx.js'), join(root, 'game.js'), join(root, 'hud.js'),
+    join(root, 'sfx.js'), join(root, 'game.js'), join(root, 'debugGame.js'), join(root, 'hud.js'),
 ];
 
 let src = files.map(f => fs.readFileSync(f, 'utf8')).join('\n');
