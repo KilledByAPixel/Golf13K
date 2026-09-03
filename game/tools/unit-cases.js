@@ -74,9 +74,9 @@ eq(genCourse(7, 1).map(r => CLASSIC_HOLES.indexOf(r)).join()
     != genCourse(99, 1).map(r => CLASSIC_HOLES.indexOf(r)).join(), true,
     'different seeds deal different orders');
 eq(genCourse(7, 0), CLASSIC_HOLES, 'classic is the untouched table itself');
-// classic's own two island greens stay on holes 8 and 16
-eq(CLASSIC_HOLES.map((r, i)=> r[0] == 3 && r[5] == 1 ? i+1 : 0).filter(h => h).join(),
-    '8,16', 'classic keeps its island greens on holes 8 and 16');
+// water 1 IS the island rule now: classic deals one island per par
+eq(CLASSIC_HOLES.map((r, i)=> r[5] == 1 ? i+1 : 0).filter(h => h).join(),
+    '3,8,12', 'classic keeps its island greens on holes 3, 8 and 12');
 
 // ---- forests and bushes ----
 forestMul = 1;

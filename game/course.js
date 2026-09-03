@@ -28,7 +28,9 @@ const PAL =
 };
 
 // classic 18 hole table. dogleg: 0 none, +-(0..1) single bend
-// strength/direction, 2 = double bend (par 5 S). fairwayW is the REAL
+// strength/direction, 2 = double bend (S). ONLY EXACTLY 2 is the S: any
+// other value past 1 falls through to a single bend that sharp (2.2 = the
+// 50-76 degree hairpin on 15). fairwayW is the REAL
 // width (0 = a par 3 with none); hazards and framing trees offset from
 // fw/2, so widening a hole here also pushes them out.
 const CLASSIC_HOLES =
@@ -36,25 +38,25 @@ const CLASSIC_HOLES =
     // [par, lenScale, fairwayW, dogleg, bunkers, water, treeDen, hills]
 
     // front: Meadow - wide, flat, learn the game
-    [4, .90, 44,   0, 1,  0, .5, .3],
-    [3, .80,  0,   0, 1,  0, .6, .3],
-    [5, .80, 40,  .5, 1,  1, .7, .4],
-    [4, .90, 38, -.7, 3,  0, .9, .5],
-    [3,1.10,  0,   0, 2, .3, .5, .6],
+    [4, .90, 50,   0, 1,  0, .5, .3],   // the opener: widest fairway on the course
+    [3, .80,  0,   0, 1,  0, .6, .3],   // short par 3
+    [5, .75, 40,  .5, 1,  1, .7, .4],   // reachable par 5 with water
+    [4,1.00, 36,   2, 2,  0, .9, .5],   // S-bend par 4
+    [3,1.30,  0,   0, 2,  0, .6, .5],   // MONSTER par 3: 215yd, a wood into the green
     [4,1.00, 36, 1.0, 2,  0,  1, .5],
     // middle: Lake - water arrives, doglegs harden
     [5, .90, 40, -.7, 2, .8, .8, .5],
-    [3, .90,  0,   0, 1,  1, .4, .4],
-    [4,1.10, 34,  .9, 2, .6,  1, .6],
-    [4, .95, 36, -.9, 3, .5,  1, .7],
-    [5,1.00, 34,   2, 2, .7,  1, .6],
-    [4,1.05, 33,   0, 3, .5, .6, .8],
+    [3, .90,  0,   0, 1,  1, .4, .4],   // island par 3
+    [4,1.00, 40,  .5, 4, .5,  0, .3],   // LINKS: not a tree, four bunkers, the wind is the hole
+    [4, .95, 36, -.9, 3, .5,  1, .7],   // the river
+    [5,1.00, 36,   2, 2, .7,  1, .6],   // S par 5
+    [4, .58, 30,   0, 1,  1, .8, .6],   // DRIVABLE island par 4, 238yd: driver over the lake, or lay up and wedge
     // back: Cliffs - narrow, hilly, mean
-    [4,1.05, 30,   .5, 3, .3,1.2,1.1],
-    [4,1.10, 28,   -1, 3, 0, 1.2, .8],
-    [5,1.05, 30,   2.3,2, .5,1.0,  1],
-    [3,1.10,  0,   0,  4,  1, .5,  1],
-    [4,1.20, 26,   1,  4, .6,1.3,1.2],
+    [4,1.05, 30,   .5, 3, .3,1.2,1.1],  // the tree in the fairway
+    [4,1.10, 26,   -1, 0,  0,1.2,1.3],  // the HILLS are the hazard: no sand, no water
+    [5,1.05, 30,  2.2, 2, .5,1.0,  1],  // hairpin par 5 (see dogleg note)
+    [3,1.10,  0,   0,  4, .5, .5,  1],  // bunkered par 3 over broken ground
+    [4,1.20, 22,   1,  4, .6,1.3,1.2],  // NARROWEST fairway on the course
     [5,1.10, 28,   2,  2, .8,1.4,1.1],
 ];
 
@@ -222,7 +224,7 @@ function genHole(courseSeed, index, row)
         pal[k] = PAL[k][0].map((v, i)=> lerp(v, PAL[k][1][i], index/17));
  
     // ...except the wildflower hue, re-rolled per hole (see PAL)
-    pal.flower[0] = 30 - R.float(240);
+    pal.flower[0] = R.float(1e3);
 
     hole = {par, len, fw, hills, pal, index,
          path: [], bunkers: [], waters: [], trees: []};
@@ -299,10 +301,14 @@ function genHole(courseSeed, index, row)
         }
     }
 
-    // special holes, keyed by POSITION in the round (so a remix re-deal
-    // dresses whatever row lands there)
+    // special holes keyed by POSITION in the round (so a remix re-deal
+    // dresses whatever row lands there); the island is keyed by the ROW
     const isHardTreeHole = index == 12;
-    const isIslandHole = par == 3 && waterC == 1 || index == 11;
+    // WATER 1 MEANS AN ISLAND GREEN, whatever the par: the lake goes under
+    // the green instead of beside the fairway. Classic deals one per par -
+    // 3 (a par 5 nobody reaches in two: lay up, then cross), 8 (par 3), 12
+    // (the drivable par 4) - and in remix the islands travel with their rows.
+    const isIslandHole = waterC == 1;
     const isRiverHole = index == 9;
 
     if (isRiverHole)
@@ -375,8 +381,14 @@ function genHole(courseSeed, index, row)
     }
     // Wildflowers: a very low tree with no trunk and its own hue. LAST of the
     // scatter loops on purpose - every draw here shifts the ones after it.
-    // KNOBS: 1000 (count), the offset range (how far out), and the size.
-    for (let i=1e3; i--;)
+    // KNOBS: the two counts, the offset range (how far out), and the size.
+    // A TREELESS hole gets NINE times the flowers - links land, all colour
+    // and no canopy. Static-vertex budget: a flower is ~30 verts, and the
+    // treeless hole is the lightest on the course because it carries no
+    // framing trees, so 9e3 puts it at 514k of gl_STATIC_MAX's 700k where
+    // the heaviest normal hole sits at 454k. 12e3 measured 601k (86%), which
+    // is too close given remix runs ~5% heavier on unsampled seeds.
+    for (let i=treeDen?1e3:9e3; i--;)
     {
         const p = pathPointAt(R.float(0, len));
         const x = p.x + R.floatSign(8, 400), z = p.z + R.floatSign(80);

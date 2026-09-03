@@ -50,8 +50,8 @@ function gameRenderPost()
         }
         else
         {
-            rainbowText('SUNSHINE', midX, T*.18, T*(.14+Math.sin(time)/99));
-            rainbowText('GOLF CLASSIC', midX, T*.3, T*(.1-Math.sin(time)/99), 1);
+            rainbowText('SUNSHINE', midX, T*.18, T*.14);
+            rainbowText('GOLF CLASSIC', midX, T*.3, T*.1, 1);
         }
         if (!DEV_THUMBNAIL)
         for (let i=3; i--;)
@@ -224,8 +224,7 @@ function renderMeter()
 
     // caption above the bar, clear of the cursor's pointer triangle
     const cap = 'CLICK TO SWING!';
-    const pulse = .04 + Math.sin(time*5)*.003;
-    armed && txt(cap, W/2, by+bh/2, T*pulse);
+    armed && txt(cap, W/2, by+bh/2, T*.04);
 
     // power mark once chosen
     if (meterPhase == 2)
@@ -315,18 +314,56 @@ const txt = (t, x, y, size, align='center', color=WHITE, w=size*.15, wc=BLACK)=>
 // big rainbow-gradient display text with outline
 function rainbowText(t, x, y, size, style=0)
 {
-    const W = mainCanvasSize.x;
+    // ONE GLYPH AT A TIME, each in a SOLID colour - never a gradient. A
+    // gradient paint costs about 6.5x a solid one in Firefox and stroking
+    // over it multiplies that again: fill+stroke in gradients measured
+    // 1.63ms a frame at this size against 0.35 for this loop, and the title
+    // draws two lines of it. Per-letter hues look the same and let the
+    // outline stay a REAL stroke, since a solid stroke is nearly free.
+    // TWO PASSES over the letters: the first totals their widths plus the
+    // gap so the word can be centred, the second draws them at that spacing.
+    // KNOBS, all in the loop below:
+    //   size/5  letter spacing, as a share of the font size
+    //   FILL    hue runs along the word by i/9 and cycles with time/5;
+    //           lightness is flat, so every letter is equally vivid
+    //   STROKE  greyscale, and a TRAVELLING HIGHLIGHT rather than a plain
+    //           outline: the **8 turns the sine into a narrow spike, so the
+    //           outline is black on most letters and flares on one at a
+    //           time. i/3 sets how wide that flare is along the word,
+    //           time*2 how fast it sweeps, /2 how bright it gets.
     const ctx = overlayContext;
-    const g = ctx.createLinearGradient(x-size*3, 0, x+size*3, 0);
-    for(let i=9; i--;)
-        g.addColorStop(i/9, hsl(style/2+i/10+time/5, 1, .7+Math.sin(i-time*2)*.2));
+    // the title is sized off the canvas HEIGHT, so on a portrait phone the
+    // word would run off the sides: cap it by the width it will need, which
+    // is a cap of about half the font size plus the gap above. MEASURED at
+    // 1.4: the title clears both edges at 1280x800, 414x896 and 320x900, by
+    // about 4px at the narrowest - so this is tight, and a wider gap or a
+    // longer word needs the number lowered again.
+    size = Math.min(size, mainCanvasSize.x*1.4/t.length);
     ctx.font = size + 'px impact';
     ctx.lineWidth = size/9;
-    ctx.textAlign = 'center';
-    ctx.strokeStyle = BLACK;
-    ctx.fillStyle = g;
-    ctx.strokeText(t, x, y, W*.95);
-    ctx.fillText(t, x, y, W*.95);
+    // textAlign is deliberately NOT set: re-sizing the overlay canvas at the
+    // top of gameRenderPost resets the context every frame, so it is back to
+    // its 'start' default here, which is what placing glyphs by hand wants.
+    // The same reset is why lineJoin and textBaseline are set up there. This
+    // only holds because the title is the FIRST thing drawn in a frame - put
+    // any txt() call before it and it will set 'center' and shift every
+    // letter, so set it here again if that ever changes.
+    let w = 0, px = x;
+    for (let p = 2; p--;)
+    for (let i = 0; i < t.length; ++i)
+    {
+        const c = t[i], cw = ctx.measureText(c).width + size/5;
+        if (p)
+        {
+            w += cw; // pass one: total only
+            continue;
+        }
+        ctx.strokeStyle = hsl(0, 0, Math.sin(i/3+style-time*2)**8/2);
+        ctx.fillStyle = hsl(style/2+i/9+time/5, 1, .6);
+        ctx.strokeText(c, px-w/2, y);
+        ctx.fillText(c, px-w/2, y);
+        px += cw;
+    }
 }
 
 // THE scorecard, in its two moods, told apart by roundOver() alone.

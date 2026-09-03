@@ -172,7 +172,13 @@ function botSwing()
     {
         aimAtPin();
         // PUTT_OVER is the game's own default putt target; less dies short
-        launchPutt(d*PUTT_OVER, aimYaw + rand(.012,-.012));
+        // ...plus the CLIMB to the hole. PUTT_OVER alone is tuned flat, so
+        // an uphill putt died short: MEASURED, travelled/needed was 0.96 on
+        // an 8% rise where a flat putt runs 1.24 past. 3.5yd of putt per yard
+        // of climb flattens it to 1.18-1.24 across -6%..+8%, and it helps
+        // downhill too (1.59 -> 1.31) because the term goes negative.
+        launchPutt(d*PUTT_OVER + (heightAt(hole.pin.x, hole.pin.z) - ball.y)*3.5,
+            aimYaw + rand(.012,-.012));
         // the tap the meter plays for a person, at the bot's own power
         snd_putt.play(.4 + Math.min(1, d*PUTT_OVER/PUTT_MAX)*.6);
     }
@@ -183,7 +189,13 @@ function botSwing()
         const carry = CLUBS[clubI][1]*lie;
         distToPath(ball.x, ball.z);
         const atPin = d <= carry+20;
-        const tgt = atPin ? hole.pin : pathPointAt(Math.min(lastAlong + carry*.95, hole.len));
+        let tgt = atPin ? hole.pin : pathPointAt(Math.min(lastAlong + carry*.95, hole.len));
+        // a lay-up never aims INTO a lake: walk the target back along the
+        // path until it is on land (an island par 5's lake sits exactly where
+        // a full second shot lands). surfaceAt overwrites lastAlong, so the
+        // start point is captured first.
+        for (let a = lastAlong + carry*.95; !atPin && surfaceAt(tgt.x, tgt.z) == SURF_WATER; a -= 10)
+            tgt = pathPointAt(a);
         // the bot's own drift estimate has to carry the airspeed term too,
         // or it corrects for a wind 50x the one the ball will actually feel
         const lv = launchVel({}, clubI, 0, lie);
@@ -192,13 +204,30 @@ function botSwing()
         const tx = tgt.x - Math.sin(hole.wind.a)*drift, tz = tgt.z - Math.cos(hole.wind.a)*drift;
         aimYaw = Math.atan2(tx-ball.x, tz-ball.z);
         let td = Math.hypot(tgt.x-ball.x, tgt.z-ball.z);
-        // head/tail wind (the drift above only moves the aim SIDEWAYS): a flat
-        // 1% per unit, deliberately naive at under half the real loss
-        td *= 1 - Math.cos(hole.wind.a - aimYaw)*hole.wind.s*.01;
+        // HEAD/TAIL WIND FROM THE SAME DRIFT: a headwind costs about what a
+        // crosswind of the same speed pushes sideways, so no second model is
+        // needed. The flat 1% this replaces left the bot 7-15% short into a
+        // strong wind, which is why it could not carry the island. Tailwind
+        // is weighted .65: the gain downwind is smaller than the loss into
+        // it, because a slowed ball hangs longer. MEASURED carry/asked over
+        // the bag at wind 5 and 8 both ways - rms 6.7% worst 15% before,
+        // rms 2.4% worst 7% after.
+        const along = Math.cos(hole.wind.a - aimYaw);
+        td -= along*drift*(along < 0 ? 1 : .65);
         // land it SHORT of a flag: power sets the CARRY, and a carry aimed at
         // the pin releases 8-13yd past it. A layup wants its full number.
-        if (atPin) td *= .92;
+        // ...unless the ground that far short of the flag is WATER: an
+        // island approach aims at the flag itself (mirrors sim.mjs)
+        if (atPin && surfaceAt(tgt.x - Math.sin(aimYaw)*td*.1, tgt.z - Math.cos(aimYaw)*td*.1) != SURF_WATER)
+            td *= .92;
         const pw = clamp(td/carry, .12, 1);
+        // SWING ERROR stays at +-.04 of meter impact. It costs at most 1.4%
+        // of power, but it also sets ballCurve at err*22, which on a driver
+        // is about 12yd of hook or slice - already visible, and the most the
+        // shot can stand. MEASURED at +-.08 the curve doubles to ~25yd, a
+        // full slice, and a round went +0 to +18 with water balls 3 -> 9.
+        // The short shots that look like a shank are not swing error at all:
+        // they are the ball flying into a hill or a tree.
         launchBall(clubI, pw, rand(.04,-.04), 0, aimYaw + rand(.015,-.015), lie);
         // the strike the meter plays for a person, same volume/pitch curve
         snd_tee.play(.5 + pw*.5, .8 + pw*.4);
@@ -516,6 +545,16 @@ function devInit()
                 TELEMETRY(1) saves it to a file to hand over.`);
     // free cam mouse look: click locks the pointer, movement turns the
     // camera (addEventListener - the engine owns window.onmousemove)
+    // FIREFOX EATS PRINTABLE KEYS. With "search for text when you start
+    // typing" on, the first letter pressed opens the quick-find bar and every
+    // key after it goes there instead of to the game - so F, T, R, P and the
+    // free cam's WASD do nothing. Swallowing single-character keys stops it.
+    // Named keys (F5, F12, Escape, the arrows) are longer than one character
+    // and anything with a modifier is excluded, so reload, devtools and every
+    // browser shortcut still work.
+    addEventListener('keydown', (e)=>
+        e.key.length == 1 && !e.ctrlKey && !e.altKey && !e.metaKey && e.preventDefault());
+
     addEventListener('mousemove', (e)=>
     {
         if (freeCam && document.pointerLockElement)

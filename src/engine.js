@@ -243,14 +243,21 @@ function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRender
         // the VISUAL viewport - the zoomable one - and on mobile it goes
         // wrong after a rotation: measured in an emulated iPhone XR, rotating
         // portrait->landscape->portrait left innerWidth/innerHeight reporting
-        // 898x1944 while the page was really 414x896. Sizing the canvas from
-        // that built one more than twice the viewport, which `margin:auto`
-        // then centred 524px off the top - Frank saw "only the middle left of
-        // the screen", and it stayed broken until a reload.
-        // documentElement.clientWidth/Height stayed correct throughout.
-        // (visualViewport was wrong too - 896x1939 - so it is no use here.)
-        const winW = document.documentElement.clientWidth;
-        const winH = document.documentElement.clientHeight;
+        // 898x1944 while the page was really 414x896, so the canvas was built
+        // more than twice the viewport and `margin:auto` centred it 524px
+        // off the top until a reload. (visualViewport was wrong too.)
+        // BODY, NOT documentElement, BECAUSE THIS PAGE IS IN QUIRKS MODE: there
+        // is no doctype in dev or in the release shell (on purpose, it costs
+        // 18 bytes). In quirks mode the spec makes body.clientWidth/Height the
+        // viewport and documentElement.client* the html element's OWN box -
+        // which is empty here, so Firefox read 1280x0 and squashed the canvas
+        // to nothing, while Chromium leniently returned the viewport either
+        // way. Measured on both engines and through emulated rotation: in
+        // quirks mode body.client* equals what documentElement.client* gave in
+        // Chromium. If a doctype is EVER added, this must go back to
+        // documentElement.client*, since body's then reads 0.
+        const winW = document.body.clientWidth;
+        const winH = document.body.clientHeight;
 
         if (canvasFixedSize.x)
         {
@@ -289,7 +296,8 @@ function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRender
 
     // setup html
     const styleRoot = 
-        'margin:0;' +                 // fill the window
+        // (no margin:0: the canvases are absolutely positioned against the
+        // viewport, so the body's default margin never reaches them)
         'overflow:hidden;' +          // no scroll bars
         'background:#000;' +          // set background color
         'user-select:none;' +         // prevent hold to select

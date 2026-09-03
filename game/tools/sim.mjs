@@ -60,8 +60,13 @@ for (let hi=0; hi<18; ++hi)
         let tgt = hole.pin;
         if (clubI != CLUB_PUTTER && d > carry0+20)
             tgt = pathPointAt(Math.min(lastAlong + carry0*.95, hole.len));
+        // a lay-up never aims INTO a lake (mirrors botSwing): walk it back
+        // along the path until it is on land
+        for (let a = lastAlong + carry0*.95; tgt != hole.pin && surfaceAt(tgt.x, tgt.z) == SURF_WATER; a -= 10)
+            tgt = pathPointAt(a);
         // wind compensation
         let aim = Math.atan2(tgt.x-ball.x, tgt.z-ball.z);
+        let drift = 0;   // hoisted: the shot branch below reads it too
         if (clubI != CLUB_PUTTER)
         {
             // THE SAME ESTIMATE AS debugGame's botSwing, from launchVel: the
@@ -72,22 +77,30 @@ for (let hi=0; hi<18; ++hi)
             // watched one for 42)
             const lv = launchVel({}, clubI, 0, SURF_PHYS[g.s][3]);
             const tf = 2*lv.vy/GRAV;
-            const drift = hole.wind.s*DRAG_K*WIND_V*Math.hypot(lv.vx, lv.vz)*tf*tf/2;
+            drift = hole.wind.s*DRAG_K*WIND_V*Math.hypot(lv.vx, lv.vz)*tf*tf/2;
             const tx = tgt.x - Math.sin(hole.wind.a)*drift, tz = tgt.z - Math.cos(hole.wind.a)*drift;
             aim = Math.atan2(tx-ball.x, tz-ball.z);
         }
         if (clubI == CLUB_PUTTER)
         {
             ++putts;
-            launchPutt(d*PUTT_OVER, aim + rnd(.012,-.012));
+            // d*PUTT_OVER plus the climb to the hole (mirrors botSwing)
+            launchPutt(d*PUTT_OVER + (heightAt(hole.pin.x, hole.pin.z) - ball.y)*3.5,
+                aim + rnd(.012,-.012));
         }
         else
         {
             const lie = SURF_PHYS[g.s][3];
             const carry = CLUBS[clubI][1]*lie;
             let td = Math.hypot(tgt.x-ball.x, tgt.z-ball.z);
-            td *= 1 - Math.cos(hole.wind.a - aim)*hole.wind.s*.01;
-            if (tgt == hole.pin) td *= .92;
+            // head/tail from the same drift, tail weighted .65 (mirrors botSwing)
+            const along = Math.cos(hole.wind.a - aim);
+            td -= along*drift*(along < 0 ? 1 : .65);
+            // land 8% short of a flag (the ball releases past it) - unless
+            // the ground that far short of the flag is WATER, where short
+            // is wet: an island approach aims at the flag itself
+            if (tgt == hole.pin && surfaceAt(tgt.x - Math.sin(aim)*td*.1, tgt.z - Math.cos(aim)*td*.1) != SURF_WATER)
+                td *= .92;
 
             launchBall(clubI, Math.min(Math.max(td/carry,.12),1), rnd(.04,-.04), 0, aim + rnd(.015,-.015), lie);
         }
