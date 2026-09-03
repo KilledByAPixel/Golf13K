@@ -372,10 +372,11 @@ function updateAim()
 
     if (autoPlay)
     {
-        // A full second before it swings, clearing the SETTLE_T camera ease:
-        // a bot that swings while the view is still moving reads as a machine,
-        // and watching it is the point of AI test mode.
-        if (stateTime > 60) botSwing();
+        // The bot LINES UP here and swings SETTLE_T later, so this is the
+        // pause before it takes aim, not before it hits: 15 + the 45 frame
+        // ease is the same full second the swing used to wait, and the view
+        // now arrives on the aim before the ball leaves rather than with it.
+        if (stateTime > 15) botSwing();
         return;
     }
     // the chips above the meter (club / spin / distance), then the meter

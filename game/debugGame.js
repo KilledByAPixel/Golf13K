@@ -152,23 +152,25 @@ const exitFreeCam = ()=> { if (freeCam) { freeCam = 0; delete localStorage['sg_c
 
 // where the bot's last swing was taken from: its stuck detector
 let botLastX = 9e9, botLastZ = 9e9;
+// 1 once the bot has set its aim and handed the camera the pose it is
+// leaving, so the next call can check whether the view has caught up
+let botLined = 0;
 
 function botSwing()
 {
     const d = ballToPin(), lie = lieMul();
-    ++strokes;
     // STUCK ESCAPE: under 15yd gained means pinned against a hill face or a
     // trunk the club's arc cannot clear, so club up to the SW (highest loft)
     // and pop over. 15yd is under any real swing (the weakest full club from
     // sand carries ~20), so it only fires on a wall.
     if (clubI != CLUB_PUTTER && Math.hypot(ball.x-botLastX, ball.z-botLastZ) < 15)
         clubI = CLUB_PUTTER-1;
-    botLastX = ball.x; botLastZ = ball.z;
-    // the bot bypasses the meter, so it logs its own shot record (power -1)
-    tlog(`shot`, {club: CLUBS[clubI][0], lie: SURF_NAMES[ballGround().s],
-        toPin: d|0, target: shotTarget|0, power: -1, impact: 0, spin: 0,
-        wind: +hole.wind.s.toFixed(1), windDir: +(hole.wind.a - aimYaw).toFixed(2), bot: 1});
-    if (clubI == CLUB_PUTTER)
+    // WORK THE SHOT OUT FIRST, then line up, then swing. Everything from
+    // here to the line-up gate is read-only, so it can safely run on every
+    // frame of the wait; nothing below the gate may be.
+    let dist = 0, pw = 0;
+    const putt = clubI == CLUB_PUTTER;
+    if (putt)
     {
         aimAtPin();
         // PUTT_OVER is the game's own default putt target; less dies short
@@ -177,10 +179,7 @@ function botSwing()
         // an 8% rise where a flat putt runs 1.24 past. 3.5yd of putt per yard
         // of climb flattens it to 1.18-1.24 across -6%..+8%, and it helps
         // downhill too (1.59 -> 1.31) because the term goes negative.
-        launchPutt(d*PUTT_OVER + (heightAt(hole.pin.x, hole.pin.z) - ball.y)*3.5,
-            aimYaw + rand(.012,-.012));
-        // the tap the meter plays for a person, at the bot's own power
-        snd_putt.play(.4 + Math.min(1, d*PUTT_OVER/PUTT_MAX)*.6);
+        dist = d*PUTT_OVER + (heightAt(hole.pin.x, hole.pin.z) - ball.y)*3.5;
     }
     else
     {
@@ -220,7 +219,7 @@ function botSwing()
         // island approach aims at the flag itself (mirrors sim.mjs)
         if (atPin && surfaceAt(tgt.x - Math.sin(aimYaw)*td*.1, tgt.z - Math.cos(aimYaw)*td*.1) != SURF_WATER)
             td *= .92;
-        const pw = clamp(td/carry, .12, 1);
+        pw = clamp(td/carry, .12, 1);
         // SWING ERROR stays at +-.04 of meter impact. It costs at most 1.4%
         // of power, but it also sets ballCurve at err*22, which on a driver
         // is about 12yd of hook or slice - already visible, and the most the
@@ -228,6 +227,40 @@ function botSwing()
         // full slice, and a round went +0 to +18 with water balls 3 -> 9.
         // The short shots that look like a shank are not swing error at all:
         // they are the ball flying into a hill or a tree.
+    }
+
+    // THE LINE-UP. The aim camera is rebuilt from aimYaw every frame, so a
+    // bot that re-aims in the frame the ball leaves makes the view jump -
+    // a person never does, because they turn the view themselves and it is
+    // already pointing where they will hit. So on the first call the bot
+    // only aims, handing the settle ease the pose it is leaving; it swings
+    // once that ease has landed. The wait at the call site covers the ease
+    // that entering aim started, this one covers the bot's own turn.
+    if (!botLined)
+    {
+        botLined = 1;
+        camFrom = [camX, camY, camZ, camYaw, camPitch];
+        camEase = 0;
+        return;
+    }
+    if (camEase < SETTLE_T)
+        return;
+
+    botLined = 0;
+    ++strokes;
+    botLastX = ball.x; botLastZ = ball.z;
+    // the bot bypasses the meter, so it logs its own shot record (power -1)
+    tlog(`shot`, {club: CLUBS[clubI][0], lie: SURF_NAMES[ballGround().s],
+        toPin: d|0, target: shotTarget|0, power: -1, impact: 0, spin: 0,
+        wind: +hole.wind.s.toFixed(1), windDir: +(hole.wind.a - aimYaw).toFixed(2), bot: 1});
+    if (putt)
+    {
+        launchPutt(dist, aimYaw + rand(.012,-.012));
+        // the tap the meter plays for a person, at the bot's own power
+        snd_putt.play(.4 + Math.min(1, dist/PUTT_MAX)*.6);
+    }
+    else
+    {
         launchBall(clubI, pw, rand(.04,-.04), 0, aimYaw + rand(.015,-.015), lie);
         // the strike the meter plays for a person, same volume/pitch curve
         snd_tee.play(.5 + pw*.5, .8 + pw*.4);

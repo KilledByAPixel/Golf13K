@@ -40,7 +40,7 @@ const CLASSIC_HOLES =
     // front: Meadow - wide, flat, learn the game
     [4, .90, 50,   0, 1,  0, .5, .3],   // the opener: widest fairway on the course
     [3, .80,  0,   0, 1,  0, .6, .3],   // short par 3
-    [5, .75, 40,  .5, 1,  1, .7, .4],   // reachable par 5 with water
+    [5, .68, 40,  .5, 1,  1, .7, .4],   // reachable par 5 with water
     [4,1.00, 36,   2, 2,  0, .9, .5],   // S-bend par 4
     [3,1.30,  0,   0, 2,  0, .6, .5],   // MONSTER par 3: 215yd, a wood into the green
     [4,1.00, 36, 1.0, 2,  0,  1, .5],

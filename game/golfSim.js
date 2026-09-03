@@ -647,8 +647,25 @@ function autoClub()
         return CLUB_PUTTER;
     if (s == SURF_BUNKER)
         return 9; // SW
-    for (let i=CLUBS.length-2; i >= 0; --i)
-        if (CLUBS[i][1] >= d + 2 || !i)
+    // 15% OF HEADROOM, not the 2 yards this used to leave. A club chosen to
+    // just barely reach the pin cannot be pushed any further, and INTO A
+    // WIND it has to be: a headwind at the top of the range takes about 14%
+    // off a driver and more off the short clubs, so a bag matched exactly to
+    // the distance leaves the player stuck. The target is still the pin
+    // (resetTarget), so clubbing up only moves the top of the meter out and
+    // gives the power somewhere to go.
+    // Bigger margins were measured and are worse: 1.2 costs 2 bytes and the
+    // bot went +1 to +6, because a longer club flies flatter and runs on,
+    // which is exactly what an approach does not want.
+    // THE LIE IS IN IT TOO: k is the surface's power multiplier over that
+    // margin, so the test is the club's REAL carry from here against the
+    // distance. Without it the rough would be handed clubs that cannot reach
+    // at any power, which is the same trap as the wind one above.
+    // `i--` walks 9 down to 0 (shortest club first) and `!i` hands over the
+    // driver when nothing reaches.
+    const k = SURF_PHYS[s][3]/1.15;
+    for (let i=CLUB_PUTTER; i--;)
+        if (CLUBS[i][1]*k >= d || !i)
             return i;
 }
 
