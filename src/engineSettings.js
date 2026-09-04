@@ -185,7 +185,7 @@ let gamepadDirectionEmulateStick = true;
  *  @type {Boolean}
  *  @default
  *  @memberof Settings */
-let inputWASDEmulateDirection = true;
+let inputWASDEmulateDirection = false;
 
 /** True if touch input is enabled for mobile devices
  *  - Touch events will be routed to mouse events

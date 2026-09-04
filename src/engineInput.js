@@ -12,38 +12,35 @@
 
 /** Returns true if device key is down
  *  @param {String|Number} key
- *  @param {Number} [device]
  *  @return {Boolean}
  *  @memberof Input */
-function keyIsDown(key, device=0)
+function keyIsDown(key)
 { 
     ASSERT(key !== undefined, 'key is undefined');
-    ASSERT(device > 0 || typeof key !== 'number' || key < 3, 'use code string for keyboard');
-    return inputData[device] && !!(inputData[device][key] & 1); 
+    ASSERT(typeof key !== 'number' || key < 3, 'use code string for keyboard');
+    return !!(inputData[key] & 1); 
 }
 
 /** Returns true if device key was pressed this frame
  *  @param {String|Number} key
- *  @param {Number} [device]
  *  @return {Boolean}
  *  @memberof Input */
-function keyWasPressed(key, device=0)
+function keyWasPressed(key)
 { 
     ASSERT(key !== undefined, 'key is undefined');
-    ASSERT(device > 0 || typeof key !== 'number' || key < 3, 'use code string for keyboard');
-    return inputData[device] && !!(inputData[device][key] & 2); 
+    ASSERT(typeof key !== 'number' || key < 3, 'use code string for keyboard');
+    return !!(inputData[key] & 2); 
 }
 
 /** Returns true if device key was released this frame
  *  @param {String|Number} key
- *  @param {Number} [device]
  *  @return {Boolean}
  *  @memberof Input */
-function keyWasReleased(key, device=0)
+function keyWasReleased(key)
 { 
     ASSERT(key !== undefined, 'key is undefined');
-    ASSERT(device > 0 || typeof key !== 'number' || key < 3, 'use code string for keyboard');
-    return inputData[device] && !!(inputData[device][key] & 4);
+    ASSERT(typeof key !== 'number' || key < 3, 'use code string for keyboard');
+    return !!(inputData[key] & 4);
 }
 
 /** Returns input vector from arrow keys or WASD if enabled
@@ -57,20 +54,17 @@ function keyDirection(up='ArrowUp', down='ArrowDown', left='ArrowLeft', right='A
 
 /** Clears all input
  *  @memberof Input */
-function inputClear() { inputData = [[]]; touchGamepadButtons = []; }
+function inputClear() { inputData = []; gamepadData.length = 0; touchGamepadButtons = []; }
 
 /** Clears an input key state
  *  @param {String|Number} key
- *  @param {Number} [device]
  *  @param {Boolean} [clearDown=true]
  *  @param {Boolean} [clearPressed=true]
  *  @param {Boolean} [clearReleased=true]
  *  @memberof Input */
-function inputClearKey(key, device=0, clearDown=true, clearPressed=true, clearReleased=true)
+function inputClearKey(key, clearDown=true, clearPressed=true, clearReleased=true)
 {
-    if (!inputData[device])
-        return;
-    inputData[device][key] &= ~((clearDown?1:0)|(clearPressed?2:0)|(clearReleased?4:0));
+    inputData[key] &= ~((clearDown?1:0)|(clearPressed?2:0)|(clearReleased?4:0));
 }
 
 /** Returns true if mouse button is down
@@ -130,7 +124,7 @@ function setInputPreventDefault(preventDefault) { inputPreventDefault = preventD
  *  @return {Boolean}
  *  @memberof Input */
 function gamepadIsDown(button, gamepad=0)
-{ return keyIsDown(button, gamepad+1); }
+{ return !!(gamepadData[gamepad] && gamepadData[gamepad][button] & 1); }
 
 /** Returns true if gamepad button was pressed
  *  @param {Number} button
@@ -138,7 +132,7 @@ function gamepadIsDown(button, gamepad=0)
  *  @return {Boolean}
  *  @memberof Input */
 function gamepadWasPressed(button, gamepad=0)
-{ return keyWasPressed(button, gamepad+1); }
+{ return !!(gamepadData[gamepad] && gamepadData[gamepad][button] & 2); }
 
 /** Returns true if gamepad button was released
  *  @param {Number} button
@@ -146,7 +140,7 @@ function gamepadWasPressed(button, gamepad=0)
  *  @return {Boolean}
  *  @memberof Input */
 function gamepadWasReleased(button, gamepad=0)
-{ return keyWasReleased(button, gamepad+1); }
+{ return !!(gamepadData[gamepad] && gamepadData[gamepad][button] & 4); }
 
 /** Returns gamepad stick value
  *  @param {Number} stick
@@ -159,9 +153,13 @@ function gamepadStick(stick,  gamepad=0)
 ///////////////////////////////////////////////////////////////////////////////
 // Input update called by engine
 
-// store input as a bit field for each key: 1 = isDown, 2 = wasPressed, 4 = wasReleased
-// mouse and keyboard are stored together in device 0, gamepads are in devices > 0
-let inputData = [[]];
+// Input as a bit field per key: 1 = isDown, 2 = wasPressed, 4 = wasReleased.
+// ONE device: keyboard, mouse and touch all write this flat array, keyed by
+// code string for keys and by button number for the mouse, which cannot
+// collide. Gamepads keep their own store, indexed by pad the way
+// gamepadStickData already is.
+let inputData = [];
+const gamepadData = [];
 
 function inputUpdate()
 {
@@ -183,9 +181,12 @@ function inputUpdatePost()
     if (headlessMode) return;
 
     // clear input to prepare for next frame
-    for (const deviceInputData of inputData)
-    for (const i in deviceInputData)
-        deviceInputData[i] &= 1;
+    for (const i in inputData)
+        inputData[i] &= 1;
+    if (gamepadsEnable)
+        for (const data of gamepadData)
+        for (const i in data)
+            data[i] &= 1;
     mouseWheel = 0;
 }
 
@@ -201,17 +202,17 @@ function inputInit()
         if (!e.repeat)
         {
             isUsingGamepad = false;
-            inputData[0][e.code] = 3;
+            inputData[e.code] = 3;
             if (inputWASDEmulateDirection)
-                inputData[0][remapKey(e.code)] = 3;
+                inputData[remapKey(e.code)] = 3;
         }
     }
 
     onkeyup = (e)=>
     {
-        inputData[0][e.code] = (inputData[0][e.code]&2) | 4;
+        inputData[e.code] = (inputData[e.code]&2) | 4;
         if (inputWASDEmulateDirection)
-            inputData[0][remapKey(e.code)] = 4;
+            inputData[remapKey(e.code)] = 4;
     }
 
     // handle remapping wasd keys to directions
@@ -232,11 +233,11 @@ function inputInit()
             audioContext.resume();
         
         isUsingGamepad = false;
-        inputData[0][e.button] = 3;
+        inputData[e.button] = 3;
         mousePosScreen = mouseEventToScreen(e);
         inputPreventDefault && e.button && e.preventDefault();
     }
-    onmouseup     = (e)=> inputData[0][e.button] = inputData[0][e.button] & 2 | 4;
+    onmouseup     = (e)=> inputData[e.button] = inputData[e.button] & 2 | 4;
     onmousemove   = (e)=> mousePosScreen = mouseEventToScreen(e);
     onwheel       = (e)=> mouseWheel = e.ctrlKey ? 0 : sign(e.deltaY);
     oncontextmenu = (e)=> false; // prevent right click menu
@@ -296,7 +297,7 @@ function gamepadsUpdate()
             }
 
             // read virtual gamepad buttons
-            const data = inputData[1] || (inputData[1] = []);
+            const data = gamepadData[0] || (gamepadData[0] = []);
             for (let i=10; i--;)
             {
                 const j = i == 3 ? 2 : i == 2 ? 3 : i; // fix button locations
@@ -324,7 +325,7 @@ function gamepadsUpdate()
     {
         // get or create gamepad data
         const gamepad = gamepads[i];
-        const data = inputData[i+1] || (inputData[i+1] = []);
+        const data = gamepadData[i] || (gamepadData[i] = []);
         const sticks = gamepadStickData[i] || (gamepadStickData[i] = []);
 
         if (gamepad)
@@ -417,10 +418,10 @@ function touchInputInit()
             // set event pos and pass it along
             const p = vec2(e.touches[0].clientX, e.touches[0].clientY);
             mousePosScreen = mouseEventToScreen(p);
-            wasTouching ? isUsingGamepad = touchGamepadEnable : inputData[0][button] = 3;
+            wasTouching ? isUsingGamepad = touchGamepadEnable : inputData[button] = 3;
         }
         else if (wasTouching)
-            inputData[0][button] = inputData[0][button] & 2 | 4;
+            inputData[button] = inputData[button] & 2 | 4;
 
         // set was touching
         wasTouching = touching;

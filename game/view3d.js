@@ -5,7 +5,7 @@
     view), and ground colours. The sky is entirely GL (glRender.js) -
     nothing 2D is drawn behind the scene. */
 
-let camX=0, camY=5, camZ=-14, camYaw=0, camPitch=.13;
+let camX, camY, camZ, camYaw, camPitch;
 // screen focal length / canvas height, an 87 degree vertical FOV. glPreRender's
 // fl=2.1 lands here because the projection form puts 2nf/range (~2) into clip w
 const FOCAL = .525;

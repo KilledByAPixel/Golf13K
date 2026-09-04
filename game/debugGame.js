@@ -316,8 +316,7 @@ function devHud(midX, T)
         const r = menuRect(padMenu), p = r.h*.08, c = overlayContext;
         c.fillStyle = GOLD;
         c.beginPath();
-        // QUOTE roundRect and keep the rect fallback - see panel in hud.js
-        (c['roundRect'] || c.rect).call(c, r.x-p, r.y-p, r.w+p*2, r.h+p*2, r.h*.38);
+        c.roundRect(r.x-p, r.y-p, r.w+p*2, r.h+p*2, r.h*.38);
         c.fill();
     }
     // top centre, between the corner readouts hud.js owns. Deliberately does
@@ -664,16 +663,17 @@ function devInit()
         surf: hole && SURF_NAMES[groundAt(ball.x, ball.z).s]});
     // SKIP(): toggle jumping straight into the game on reload. Held in
     // localStorage so it outlives edits and rebuilds; SKIP(1)/SKIP(0) set it.
-    window['SKIP'] = (v = !localStorage['sg_skip'])=>
-    {
-        v ? localStorage['sg_skip'] = 1 : delete localStorage['sg_skip'];
-        return v ? 'reload jumps into the game' : 'reload stops at the title';
-    };
     window['CHEATS'] = (v = !cheatsOn)=>
     {
         cheatsOn = v;
         v ? localStorage['sg_cheats'] = 1 : delete localStorage['sg_cheats'];
         return v ? 'cheats on: debug keys live' : 'cheats off: debug keys ignored';
+    };
+    window['SKIP'] = (v = !localStorage['sg_skip'])=>
+    {
+        v ? localStorage['sg_skip'] = 1 : delete localStorage['sg_skip'];
+        window['CHEATS'](1); // SKIP() implies CHEATS() on, so the keys work
+        return v ? 'reload jumps into the game' : 'reload stops at the title';
     };
     window['PREVIEW'] = (v)=> placeView = v; // harness: landing-preview cam on/off
     window['NICE'] = ()=> niceShot = 1; // harness: rainbow trail screenshot

@@ -20,7 +20,7 @@ const zzfxG = new Function('const PI=Math.PI; let audioDefaultSampleRate=44100;'
   + '; return sfxGen;')();
 
 const SR = 44100;
-const rms = a => Math.sqrt(a.reduce((s, v) => s + v*v, 0)/a.length);
+const rms = a => (a.reduce((s, v) => s + v*v, 0)/a.length)**.5;
 const peak = a => { let m = 0; for (const v of a) m = Math.max(m, Math.abs(v)); return m; };
 
 // every `const snd_x = [MUSIC &&] new Sfx([...])` in sfx.js, by name

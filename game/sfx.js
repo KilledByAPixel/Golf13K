@@ -142,7 +142,7 @@ const snd_bass = MUSIC && new Sfx([.5,0,82,,,.05,,.5,,,,,,,,,,.1,.1]);
 const snd_lead = MUSIC && new Sfx([.3,0,164,,,,,9,,,,,,,,,,.1,.3]);
 const BASS_SCALE = [0,5,7,5]; // pentatonic
 const SCALE = [0,7,4,12,11,12,7,4];   // major
-let beat = -1, bassNote = 0, leadNote = 0, chord = 0;
+let beat = -1, bassNote=0, leadNote=0, chord=0;
 const musicTick = 8;
 
 function updateMusic()

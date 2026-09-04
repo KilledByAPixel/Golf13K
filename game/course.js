@@ -101,7 +101,7 @@ function distToPath(x, z)
         if (d < best)
         {
             best = d;
-            lastAlong = a.cum + Math.sqrt(len2)*t;
+            lastAlong = a.along + (len2)**.5*t;
         }
     }
     return lastDist = best;
@@ -112,10 +112,10 @@ function pathPointAt(d)
 {
     const P = hole.path;
     for (let i=P.length-1; i--;)
-        if (d > P[i].cum || !i)
+        if (d > P[i].along || !i)
         {
             const a = P[i], b = P[i+1];
-            const t = clamp((d - a.cum)/(b.cum - a.cum));
+            const t = clamp((d - a.along)/(b.along - a.along));
             return {x: lerp(a.x, b.x, t), z: lerp(a.z, b.z, t)};
         }
 }
@@ -148,6 +148,27 @@ function heightAt(x, z)
     const dg = Math.hypot(x-hole.green.x, z-hole.green.z);
     const k = smoothStep(clamp(1 - dg/(hole.gr*2.4)));
     h = lerp(h, hole.greenH, k) + k*.7;
+    // THE BANK. surfaceAt cuts the green off at gr while the plateau above
+    // reaches 2.4x that, so at a green with a lake at its rim the ground
+    // stands yards over the water and then drops vertically. That cliff is in
+    // NEITHER of the two surfaces anything reads: not in heightAt, so the
+    // shading normal and the roll never see it, and not in a mesh triangle,
+    // which can only ramp it from the cell BEFORE - out from under a ball
+    // still standing on full-height green. Hand the bank back to the lake
+    // across the last 3 yards of green and the drop becomes real terrain:
+    // slopeAt reads it, a ball cannot rest on it, and the drawn mesh
+    // interpolates the shape the ball is actually standing on. Widening the 3
+    // softens the bank and eats more green; narrowing it does the reverse.
+    // Gated on k, the plateau's own reach, so a green with no lake near it is
+    // untouched.
+    if (k)
+        for (const w of hole.waters)
+        {
+            const nd = ellipseDist(x, z, w);
+            if (nd < 1.5)
+                h = lerp(h, w.h+.3, smoothStep(clamp((1.5-nd)/.5))
+                    * smoothStep(clamp((dg - hole.gr)/3 + 1)));
+        }
     // tee pad (the tee is the origin)
     const kt = smoothStep(clamp(1 - Math.hypot(x, z)/14));
     h = lerp(h, hole.teeH, kt);
@@ -223,13 +244,15 @@ function genHole(courseSeed, index, row)
     hole = {par, len, fw, hills, pal, index,
          path: [], bunkers: [], waters: [], trees: []};
 
-    // centerline path with doglegs
+    // Centerline path with doglegs. A point is {x, z, along}: along is the
+    // distance from the TEE to it, in yards, which is what distToPath reports
+    // as lastAlong and what pathPointAt indexes by.
     const P = hole.path;
-    P.push({x:0, z:0, cum:0});
+    P.push({x:0, z:0, along:0});
     const addPt = (x, z)=>
     {
         const p = P[P.length-1];
-        P.push({x, z, cum: p.cum + Math.hypot(x-p.x, z-p.z)});
+        P.push({x, z, along: p.along + Math.hypot(x-p.x, z-p.z)});
     }
     if (par == 3 || !dog)
         addPt(0, len);
@@ -253,11 +276,16 @@ function genHole(courseSeed, index, row)
 
     // green on a plateau at path end
     const end = P[P.length-1];
-    hole.gr = R.float(12, 20) - hills;
+    // An ISLAND green (waterC 1, the lake is placed ON it below) loses its
+    // outer 3 yards to the bank in heightAt, so it is drawn 3 wider to keep
+    // the same puttable surface - and the pin and the greenside bunkers below
+    // both key off gr, so they move out with it. R.float spends one draw
+    // whatever its range, so this cannot re-roll a layout.
+    hole.gr = R.float(12, 20) - hills + (waterC == 1)*3;
     hole.green = end;
     hole.greenH = heightRaw(end.x, end.z) + .5;
     hole.teeH = heightRaw(0, 0) + .3;
-    const pa = R.angle();
+    const pa = R.float(1e3);
     const pd = R.float(0, hole.gr*.5);
     hole.pin = {x: end.x + Math.sin(pa)*pd, z: end.z + Math.cos(pa)*pd};
 
@@ -280,7 +308,7 @@ function genHole(courseSeed, index, row)
     // bunkers: randomly placed sand
     for (let i=bunkerN; i--;)
     {
-        const a = R.angle();
+        const a = R.float(1e3);
         const d = hole.gr + R.float(2, 7);
         const gx = hole.green.x + Math.sin(a)*d, gz = hole.green.z + Math.cos(a)*d;
         if (!index || R.bool(.5) || par == 3 && waterC == 1)
@@ -288,7 +316,7 @@ function genHole(courseSeed, index, row)
         else
         {
             // fairway bunker at a landing zone
-            const p = pathPointAt(len*R.float(.5, .8));
+            const p = pathPointAt(len*R.float(.4, .9));
             const side = R.sign();
             hole.bunkers.push({x: p.x + side*(fw/2 + R.float(-2,4)), z: p.z,
                             rx:R.float(6,18), rz:R.float(6,18)});

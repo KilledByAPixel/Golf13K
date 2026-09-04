@@ -440,7 +440,7 @@ class RandomGenerator
 
     /** Returns a random angle between -PI and PI
     *  @return {number} */
-    angle() { return this.float(-PI, PI); }
+    //angle() { return this.float(-PI, PI); }
 
     /** Returns a seeded vec2 with size between the two values passed in
     *  @param {number} valueA

@@ -122,8 +122,17 @@ for (let hi=0; hi<18; ++hi)
             // hazard-edge drop, matching game.js
             const ddx=shotStart.x-ballSafe.x, ddz=shotStart.z-ballSafe.z;
             const dl=Math.hypot(ddx,ddz)||1;
-            ball.x=ballSafe.x+ddx/dl*2; ball.z=ballSafe.z+ddz/dl*2;
-            ball.y=groundAt(ball.x,ball.z).h;
+            // walk back to ground that HOLDS the ball, matching game.js
+            for (let d=2; ; d+=2)
+            {
+                const t=Math.min(d,dl);
+                ball.x=ballSafe.x+ddx/dl*t; ball.z=ballSafe.z+ddz/dl*t;
+                const g=groundAt(ball.x,ball.z);
+                ball.y=g.h;
+                if (t == dl || g.s < SURF_WATER
+                    && Math.hypot(...slopeAt(ball.x,ball.z))*GRAV < SURF_PHYS[g.s][2])
+                    break;
+            }
             ball.vx=ball.vy=ball.vz=0;
             stats[ev == EV_WATER ? 'water' : 'ob']++;
         }

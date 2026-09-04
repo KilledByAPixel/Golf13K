@@ -13,6 +13,8 @@
     purely from where it lands in the concatenated source. */
 
 const GOLD = '#fd4';
+const FONT = 'impact';
+//const FONT = 'none';
 
 function gameRenderPost()
 {
@@ -57,7 +59,7 @@ function gameRenderPost()
         for (let i=3; i--;)
         {
             const r = menuRect(i), cx = r.x + r.w/2;
-            const best = i && localStorage['sg_best_' + (i > 1 ? 'r' : 'c')];
+            const best = i && localStorage[(i > 1 ? 'sg_best_r' : 'sg_best_c')];
             // REMIX greys out until classic is beaten at par or better.
             // CONTINUE lights up for a save OR a finished round, since it
             // re-opens the final scorecard - the only way back to it.
@@ -65,7 +67,7 @@ function gameRenderPost()
             // .24 is set by CONTINUE, the longest label, so all three match
             const fs = Math.min(r.h/2, r.w*.24);
             panel(r.x, r.y, r.w, r.h, r.h*.3);
-            txt(MENU[i], cx, r.y + r.h*.36, fs, 'center', col);
+            txt(MENU[i], cx, r.y + r.h*.36, fs, 'center', col, r.w);
             if (best) txt(relPar(+best), cx, r.y + r.h*.8, fs*.8, 'center', col);
         }
         return;
@@ -82,7 +84,7 @@ function gameRenderPost()
     else
     {
         const pad = T*.05; // breathing room off the screen top
-        txt(`HOLE ${holeIndex+1}  PAR ${hole.par}`, 18, pad, T*.04, 'left');
+        txt(`HOLE ${holeIndex+1}  PAR ${hole.par}`, 18, pad, T*.04, 'left', WHITE, W/2);
         // the shot IN PLAY: strokes increments at impact, so aim and the
         // meter are one ahead of it and the flight is not
         txt(`${ballToPin()|0}yd TO PIN`, 18, pad+T*.05, T*.03, 'left');
@@ -92,7 +94,11 @@ function gameRenderPost()
         // 1.4 yd/s of air and a yard per second is 2.0455mph. The exact 2.864
         // prints the same integer at every wind after the |0.
         txt(`WIND ${hole.wind.s*2.86|0}mph`, W-18, pad+T*.05, T*.03, 'right');
-        drawWind(W-18-T*.05, pad+T*.12, T*.03);
+
+        // the wind vane: the one arrow that points somewhere real, turned into the
+        // camera's frame so it reads against the hole rather than the compass
+        tri(W-18-T*.05, pad+T*.12, T*.03, hole.wind.a - camYaw,
+            hsl(.3 - hole.wind.s/25, 1, Math.max(.5, 1-hole.wind.s/20)), .4);
     }
 
     if (state == ST_AIM || state == ST_SWING)
@@ -107,9 +113,10 @@ function gameRenderPost()
             const mx = front ? clamp(pp.x, W*.05, W*.95) : pp.x < midX ? W*.95 : W*.05;
             const my = front ? clamp(pp.y, T*.3, T*.7) : T*.3;
             // hovers above the flag top so the real flag stays visible under it
-            const s = T*.05, bob = Math.sin(time*3)*T*.006;
-            txt('⚑', mx, my - s*.85 + bob, s, 'center', '#f35');
-            txt(`${dPin|0}`, mx, my - s*1.7 + bob, T*.03);
+            const bob = Math.sin(time*3)*T*.006;
+            txt('⚑', mx, my - T*.04 + bob, T*.04, 'center', '#f35');
+            //tri(mx, my + bob-T*.05, T*.01, PI, '#f35', 2, T*.001);
+            txt(`${dPin|0}`, mx, my - T*.08 + bob, T*.03);
         }
 
         // lie label (no control instructions: the chips explain themselves)
@@ -119,9 +126,8 @@ function gameRenderPost()
         {
             // the clickable turn arrows, at the screen sides.
             // KNOB: T*.045 is their size; tri fixes the outline weight.
-            const pulse = .8 + Math.sin(time*4)*.2, ax = arrowX();
-            tri(ax, T*.5, T*.045, -PI/2, rgb(1,1,1,pulse));
-            tri(W-ax, T*.5, T*.045, PI/2, rgb(1,1,1,pulse));
+            tri(arrowX(), T*.5, T*.04, -PI/2, rgb(1,1,1,.8 + Math.sin(time*4)*.2));
+            tri(W-arrowX(), T*.5, T*.04, PI/2, rgb(1,1,1,.8 + Math.sin(time*4)*.2));
         }
         renderMeter();
     }
@@ -129,11 +135,12 @@ function gameRenderPost()
     if (state == ST_HOLEOUT)
         renderConfetti();
 
+    // msgText='test message';msgTimer=25;
     if (msgTimer > 0)
     {
         const fade = Math.min(1, msgTimer/25);
         const c = rgb(1,1,1,fade);
-        txt(msgText, midX, T*.3, T*.1, 'center', c, T*.01);
+        txt(msgText, midX, T*.3, T*.1, 'center', c);
     }
 }
 
@@ -151,29 +158,24 @@ function gameRenderPost()
 // lands the same weight at every size; the chevrons pass .4 to match txt's
 // size*.15 outline at their s = fs/3. Passing a SCREEN-space width is the
 // trap - it arrives divided by s.
-function tri(x, y, s, a, fill, w = 1, lw=.2)
+function tri(x, y, s, a, color, w = 1, lw=.2)
 {
     const c = overlayContext;
     c.save();
     c.translate(x, y);
     c.rotate(a);
-    c.fillStyle = fill;
+    c.fillStyle = color;
     c.beginPath();
     c.lineTo(0, -s);
     c.lineTo(w*s, s);
     c.lineTo(-w*s, s);
     c.lineTo(0, -s);
     c.lineWidth = lw*s;
-    c.strokeStyle = BLACK;
+    c.strokeStyle = rgb(0,0,0,color.a);
     c.stroke();
     c.fill();
     c.restore();
 }
-
-// the wind vane: the one arrow that points somewhere real, turned into the
-// camera's frame so it reads against the hole rather than the compass
-const drawWind = (x, y, s)=> tri(x, y, s, hole.wind.a - camYaw,
-    hsl(.3 - hole.wind.s/25, 1, Math.max(.5, 1-hole.wind.s/20)), .4);
 
 function renderMeter()
 {
@@ -223,7 +225,7 @@ function renderMeter()
 
     // caption above the bar, clear of the cursor's pointer triangle
     const cap = 'CLICK TO SWING!';
-    armed && txt(cap, W/2, by+bh/2, T*.04, 'center', hsl(0, 0, 1, .7+.3*Math.sin(stateTime*.05)));
+    armed && txt(cap, W/2, by+bh/2, T*.04, 'center', hsl(0, 0, 1, .7+.3*Math.sin(time*4)));
 
     // power mark once chosen
     if (meterPhase == 2)
@@ -263,19 +265,12 @@ function renderMeter()
 }
 
 // Rounded backing panel for the meter, chips and scorecard.
-// QUOTE roundRect: Closure's externs predate it and would rename it, a
-// release-only crash. The rect FALLBACK covers browsers older than roundRect
-// (the NEWEST api this game uses - Safari 16 / Firefox 112, both later than
-// the WebGL2 the renderer needs): panel() runs inside gameRenderPost, before
-// requestAnimationFrame with no catch, so a missing method would freeze the
-// game on the title's first frame. rect ignores the extra radius, so an old
-// browser gets square corners and plays on.
 const panel = (x, y, w, h, r)=>
 {
     const c = overlayContext;
     c.fillStyle = '#000a';
     c.beginPath();
-    (c['roundRect'] || c.rect).call(c, x, y, w, h, r);
+    c.roundRect(x, y, w, h, r);
     c.fill();
 }
 
@@ -292,19 +287,18 @@ const fillRect = (x, y, w, h, col, a)=>
 
 // HUD text straight on the overlay context - the engine's drawTextScreen
 // does far more than this needs and costs 772 source bytes.
-const txt = (t, x, y, size, align='center', color=WHITE, w=size*.15)=>
+const txt = (t, x, y, size, align='center', color=WHITE, maxWidth=mainCanvasSize.x*.9)=>
 {
+    // limit max outline size
+    const lw = Math.min(mainCanvasSize.y*.01, size*.15);
     const c = overlayContext;
-    // maxWidth on BOTH passes or the outline draws at the unsqueezed width.
-    // Only the showMsg banner ever comes near it.
-    const m = mainCanvasSize.x*.95;
     c.fillStyle = color;
     c.textAlign = align;
-    c.font = size + 'px impact';
+    c.font = size + 'px ' + FONT;
     c.strokeStyle = rgb(0,0,0,color.a);
-    c.lineWidth = w;
-    c.strokeText(t, x, y, m);
-    c.fillText(t, x, y, m);
+    c.lineWidth = lw;
+    c.strokeText(t, x, y, maxWidth);
+    c.fillText(t, x, y, maxWidth);
 }
 
 // big rainbow-gradient display text with outline
@@ -335,7 +329,7 @@ function rainbowText(t, x, y, size, style=0)
     // about 4px at the narrowest - so this is tight, and a wider gap or a
     // longer word needs the number lowered again.
     size = Math.min(size, mainCanvasSize.x*1.4/t.length);
-    ctx.font = size + 'px impact';
+    ctx.font = size + 'px ' + FONT;
     ctx.lineWidth = size/9;
     // textAlign is deliberately NOT set: re-sizing the overlay canvas at the
     // top of gameRenderPost resets the context every frame, so it is back to
@@ -354,11 +348,13 @@ function rainbowText(t, x, y, size, style=0)
             w += cw; // pass one: total only
             continue;
         }
+        // clamp to width of canvas
+        const scale = Math.min(1, .9*mainCanvasSize.x / w);
         ctx.strokeStyle = hsl(0, 0, Math.sin(i/3+style-time*2)**8/2);
         ctx.fillStyle = hsl(style/2+i/9+time/5, 1, .6);
-        ctx.strokeText(c, px-w/2, y);
-        ctx.fillText(c, px-w/2, y);
-        px += cw;
+        ctx.strokeText(c, px-w/2*scale, y, cw, w*scale);
+        ctx.fillText(c, px-w/2*scale, y, w*scale);
+        px += cw*scale;
     }
 }
 
@@ -381,7 +377,7 @@ function renderScorecard()
     over || txt(scoreName(strokes, hole.par), W/2, T*.18, T*.05);
     const cw = W*.095; // W*.85/9
     const x0 = W*.08 + cw/2;
-    for (let half=0; half<2; ++half)
+    for (let half=2; half--;)
     {
         // .34 centres the two rows in the panel
         const y = T*(.34 + half*.25);
@@ -404,7 +400,6 @@ function renderScorecard()
 function renderConfetti()
 {
     const W = mainCanvasSize.x, T = mainCanvasSize.y;
-    if (strokes <= hole.par)
     for (let i=99; i--;)
     {
         const rx = W/2+Math.sin(i)*W/2, rs = 4+Math.sin(i**3);

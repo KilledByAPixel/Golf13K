@@ -72,7 +72,7 @@ const lieMul = ()=> SURF_PHYS[ballGround().s][3] * (ballGround().s == SURF_BUNKE
 // THE TARGET. The meter is scaled to it - the bar's top IS shotTarget yards -
 // so nothing else ever converts between "power" and "distance".
 
-let shotTarget = 100;
+let shotTarget;
 
 // The longest this club can hit from this lie. The putter is a flat PUTT_MAX:
 // what a lie costs a putt depends on how far it rolls through it, which a
@@ -103,9 +103,7 @@ const relPar = (d)=> d ? (d>0?'+':'')+d : 'E';
 const SCORE_NAMES = ['🦄 ALBATROSS!','🦄 EAGLE!','🌈 BIRDIE!','PAR','BOGEY','DOUBLE BOGEY'];
 function scoreName(strokes, par)
 {
-    if (strokes == 1) return '🦄 HOLE IN ONE!';
-    const d = strokes - par;
-    return SCORE_NAMES[clamp(d+3, 0, 5)];
+    return strokes - 1 ? SCORE_NAMES[clamp(d+3, 0, 5)] : '🦄 HOLE IN ONE!';
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -116,7 +114,7 @@ function scoreName(strokes, par)
 function startCourse(remix)
 {
     remixMode = remix;
-    courseSeed = remix ? randInt(1e6)+1e6 : CLASSIC_SEED;
+    courseSeed = remix ? randInt(9,2e6): CLASSIC_SEED;
     courseRows = genCourse(courseSeed, remix);
     holeIndex = 0;
     scores = [];
@@ -132,9 +130,9 @@ function startHole(w)
     genHole(courseSeed, holeIndex, courseRows[holeIndex]);
     if (w) hole.wind = w;
     glContext && buildWorld();
-    ball.x = ball.z = 0; // the tee is the origin
     ball.y = ballGround().h;
-    ball.vx = ball.vy = ball.vz = strokes = 0;
+    // the tee is the origin
+    ball.x = ball.z = ball.vx = ball.vy = ball.vz = strokes = 0;
     trail = [];
     setState(ST_INTRO);
 }
@@ -211,7 +209,7 @@ function nextHole()
         debug && autoPlay && console.log(`RESULT total ${scoreTotal()} par ${parTotal(18)}`);
         // Stored OVER OR UNDER PAR, not as a stroke total: a remix course
         // need not share the classic 18's par, so totals are not comparable.
-        const key = 'sg_best_' + (remixMode ? 'r' : 'c');
+        const key = (remixMode ? 'sg_best_r' : 'sg_best_c');
         const rel = scoreTotal() - parTotal(18);
         const best = localStorage[key];
         if (!best || rel < best)
@@ -293,8 +291,7 @@ function menuPick(b)
             : roundOver() && (setState(ST_HOLEOUT), stateTime = CARD_T);
     // REMIX is locked until classic is beaten at PAR OR BETTER: bests are stored
     // OVER par, so `<= 0` is the whole test (undefined <= 0 is false too)
-    else if (b && (b < 3 || localStorage['sg_best_c'] <= 0)
-        && (!savedGame || confirm('Abandon round?')))
+    else if (b && (b < 3 || localStorage['sg_best_c'] <= 0))
         startCourse(b-2);
 }
 
@@ -347,12 +344,12 @@ function updateAim()
 {
     // turn: hold the on-screen arrows (or arrow keys), accelerating
     const dir = (mouseIsDown(0) ? turnBtnAt(mousePosScreen) : 0)
-        - keyIsDown('ArrowLeft') + keyIsDown('ArrowRight');
+        - (keyIsDown('ArrowLeft') || keyIsDown('KeyA')) + (keyIsDown('ArrowRight') || keyIsDown('KeyD'));
     turnHold = dir && ++turnHold;
     aimYaw += dir * (Math.min(turnHold/1e4, .005));
     // Keyboard: arrows/WASD turn, up/down = club (classic PC golf). Everything
     // else is the wheel and the chips - the game assumes a mouse or touch.
-    const dc = keyWasPressed('ArrowDown') - keyWasPressed('ArrowUp');
+    const dc = (keyWasPressed('ArrowDown') || keyWasPressed('KeyS')) - (keyWasPressed('ArrowUp') || keyWasPressed('KeyW'));
     if (dc)
     {
         clubI = clamp(clubI + dc, 0, CLUBS.length-1);
@@ -398,6 +395,7 @@ function updateAim()
     else if (keyWasPressed('Space') || (mouseWasPressed(0) && mouseOverMeter())
         || debug && padClick())
     {
+        snd_adjust.play();
         meterStart();
         setState(ST_SWING);
     }
@@ -472,7 +470,7 @@ function updateSwing()
                 niceShot = 1;
                 snd_nice.play();
             }
-            showMsg(!err ? 'PERFECT!' : Math.max(err, -err) < .06 ? 'GOOD'
+            showMsg(!err ? 'PERFECT!' : Math.abs(err) < .06 ? 'GOOD'
                 : err > 0 ? 'SLICE!' : 'HOOK!');
         }
         startFlight();
@@ -542,9 +540,27 @@ function updateFlight()
             showMsg(ev == EV_WATER ? 'SPLASH! +1' : 'OUT OF BOUNDS! +1');
             const dx = shotStart.x-ballSafe.x, dz = shotStart.z-ballSafe.z;
             const dl = Math.hypot(dx, dz) || 1;
-            ball.x = ballSafe.x + dx/dl*2;
-            ball.z = ballSafe.z + dz/dl*2;
-            ball.y = ballGround().h;
+            // WALK BACK along the shot until the ball can actually STAY:
+            // safe surface AND flat enough for friction to beat the slope,
+            // which is rollStep's resting rule. ballSafe is the last point
+            // over SAFE ground, and at a green with a lake at its rim that is
+            // the bank - a fixed step back leaves the ball on a slope that
+            // feeds it straight back in, and the penalty repeats to MAX
+            // STROKES. The walk STOPS AT shotStart (dl is the distance to it):
+            // the ball was at rest there, so it is the one spot guaranteed to
+            // hold, and it is stroke-and-distance when the line back crosses
+            // the water - an island green has no land between.
+            for (let d = 2; ; d += 2)
+            {
+                const t = Math.min(d, dl);
+                ball.x = ballSafe.x + dx/dl*t;
+                ball.z = ballSafe.z + dz/dl*t;
+                const g = ballGround();
+                ball.y = g.h;
+                if (t == dl || g.s < SURF_WATER
+                    && Math.hypot(...slopeAt(ball.x, ball.z))*GRAV < SURF_PHYS[g.s][2])
+                    break;
+            }
         }
         if (strokes >= hole.par+5)
         {

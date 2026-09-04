@@ -315,7 +315,7 @@ function meterUpdate(clicked)
 function launchVel(b, clubI, dir, lieMul, power=1, spin=0)
 {
     const c = CLUBS[clubI], la = (c[2] + 7 - spin*SPIN_LOFT)*Math.PI/180, q = lieMul*power;
-    const v = Math.sqrt(c[1]*q*(1 + CARRY_K*q)*GRAV/Math.sin(2*la));
+    const v = (c[1]*q*(1 + CARRY_K*q)*GRAV/Math.sin(2*la))**.5;
     b.vx = Math.sin(dir)*Math.cos(la)*v;
     b.vy = Math.sin(la)*v;
     b.vz = Math.cos(dir)*Math.cos(la)*v;
@@ -371,7 +371,7 @@ function puttVel(b, dist, dir)
     // "8 yards" always means 8 yards of green roll: a putt out of rough
     // travels LESS than asked and the player adds power, rather than 8yd of
     // rough speed running away on grass 4.7x slicker.
-    const v = Math.sqrt(6*dist)*1.02;
+    const v = (6*dist)**.5*1.02;
     b.vx = Math.sin(dir)*v;
     b.vz = Math.cos(dir)*v;
     b.vy = 0;

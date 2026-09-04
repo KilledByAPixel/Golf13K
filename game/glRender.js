@@ -72,16 +72,16 @@ const WATER_GLSL =
     // Shading MUST project the gradient onto the LIGHT, or the same face of
     // every wave brightens whatever SUN_A is. Vertex lighting is baked at
     // push time, so displacing the surface cannot otherwise re-light it.
-    +'d.rgb*=1.-dot(G,l.xz)*.6;'
+    +'d.xyz*=1.-dot(G,l.xz)*.6;'
     // Specular: the one term that depends on where the camera stands. Broad
     // exponent on purpose - per-VERTEX on a 2yd mesh, a tight highlight would
     // pop between vertices. KNOBS: 12. (higher = tighter), .5 (brightness).
-    +(SPEC ? 'd.rgb+=pow(max(dot(reflect(-l,normalize(vec3(-G.x,1,-G.y))),'
+    +(SPEC ? 'd.xyz+=pow(max(dot(reflect(-l,normalize(vec3(-G.x,1,-G.y))),'
         +'normalize(e-v)),0.),12.)*.5;' : '')
     // Foam must lead with ONE wave: thresholding the SUM lights only where
     // both peak, isolated points rather than a line. The main wave alone
     // clears the threshold; the cross wave (.12) only wobbles the edge.
-    +'d.rgb+=max(sin(a)+B*.12-.6,0.)*.55'
+    +'d.xyz+=max(sin(a)+B*.12-.6,0.)*.55'
     +(PRISM ? '*(1.+.6*cos(w*9.+vec3(0,2,4)))' : '')+';'
     // Sparkle: each water vertex twinkles on its own hashed clock, so glints
     // pop at random; max(cos(a),0.) clusters them on the face tilted toward
@@ -89,9 +89,9 @@ const WATER_GLSL =
     // 5. (rate), .7 (brightness).
     +(SPARKLE ?
      'float h=fract(sin(v.x*127.1+v.z*311.7)*43758.5);'
-    +'d.rgb+=step(.8,h)*pow(max(sin(h*63.+t*5.),0.),100.)*max(cos(a),0.)*.7;' : '');
+    +'d.xyz+=step(.8,h)*pow(max(sin(h*63.+t*5.),0.),100.)*max(cos(a),0.)*.7;' : '');
 const glLightColor = [.65, .65, .6], glAmbient = [.5, .5, .55];
-
+//const glLightColor = [1, 1, 1], glAmbient = [0, 0, 0];
 
 // called by engine.js during engineInit, before the overlay canvas is
 // appended - so the layering lands glCanvas < overlayCanvas
@@ -112,12 +112,12 @@ function glInit(rootElement)
         // water rides the 254/255 alpha band - WATER_GLSL, at the top of
         // this file, is the whole effect
         'void main(){vec3 v=p.xyz;d=c;'
-        +'if(c.a>.995&&c.a<1.){'+WATER_GLSL+'}'
-        // Foliage rides a second alpha band. BOTH bands need `c.a<1.` -
+        +'if(c.w>.995&&c.w<1.){'+WATER_GLSL+'}'
+        // Foliage rides a second alpha band. BOTH bands need `c.w<1.` -
         // opaque geometry is alpha 1, and without it every trunk, terrain
         // vert, pin and ball sways too.
-        +'else if(c.a>.9&&c.a<1.){float w=sin(t*2.+v.x*.2+v.z*.5)+sin(t*3.3+v.z*.3-v.x*.1);'
-        +'v.xz+=w*(c.a-.9)*3.;d.a=1.;}'
+        +'else if(c.w>.9&&c.w<1.){float w=sin(t*2.+v.x*.2+v.z*.5)+sin(t*3.3+v.z*.3-v.x*.1);'
+        +'v.xz+=w*(c.w-.9)*3.;d.w=1.;}'
         +'gl_Position=m*vec4(v,1.);q=p.w;}'
         ,
         '#version 300 es\n' +
@@ -129,8 +129,8 @@ function glInit(rootElement)
         'float z=gl_FragCoord.z/gl_FragCoord.w*f.w;'+
         // fog: blend toward the haze color with distance (yards), then
         // alpha-fade at the far edge into the clear colour
-        'c=q>0.?d:vec4(mix(d.xyz,f.xyz,clamp(z*z/5e5,0.,1.)),d.a*clamp(4.-z/200.,0.,1.));'+
-        'c.rgb*=c.a;'+                // premultiply
+        'c=q>0.?d:vec4(mix(d.xyz,f.xyz,clamp(z*z/5e5,0.,1.)),d.w*clamp(4.-z/200.,0.,1.));'+
+        'c.xyz*=c.w;'+                // premultiply
         '}'
     );
     glContext.useProgram(glShader);
@@ -520,7 +520,7 @@ function pushTreeGL(t)
     // jitter, so the second-species roll takes an uncorrelated slice (*7.3 %1).
     const leaf = t.k == 3 ? 
         hsl(hole.index*.37 + (t.c*7.3 % 1 > SECOND_MIX && .2), 1, t.l/2+.5)
-        : hslCol(pal.tree, t.l*20, t.c*20);
+        : hslCol(pal.tree, t.l*20, t.c*40);
     // A BUSH IS JUST A LOW TREE with no trunk - same canopy, same collision
     // sphere, one code path. TRUNK_H is the canopy centre and the only thing
     // that differs; course.js bakes the same number into t.y.
