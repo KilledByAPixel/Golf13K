@@ -103,7 +103,7 @@ const relPar = (d)=> d ? (d>0?'+':'')+d : 'E';
 const SCORE_NAMES = ['🦄 ALBATROSS!','🦄 EAGLE!','🌈 BIRDIE!','PAR','BOGEY','DOUBLE BOGEY'];
 function scoreName(strokes, par)
 {
-    return strokes - 1 ? SCORE_NAMES[clamp(d+3, 0, 5)] : '🦄 HOLE IN ONE!';
+    return strokes - 1 ? SCORE_NAMES[clamp(strokes-par+3, 0, 5)] : '🦄 HOLE IN ONE!';
 }
 
 ///////////////////////////////////////////////////////////////////////////////
