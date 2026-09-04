@@ -5,8 +5,7 @@
     preview cam), SWING (meter), FLIGHT (chase cam), HOLEOUT.
     The 2D overlay lives in hud.js; everything else renders in the 3d view. */
 
-const ST_TITLE=0, ST_INTRO=1, ST_AIM=2, ST_SWING=3, ST_FLIGHT=4,
-      ST_HOLEOUT=5;
+const ST_TITLE=0, ST_INTRO=1, ST_AIM=2, ST_SWING=3, ST_FLIGHT=4, ST_HOLEOUT=5;
 
 const CLASSIC_SEED = 1113;
 
