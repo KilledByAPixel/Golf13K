@@ -164,7 +164,12 @@ const SURF_PHYS =
     [.26,.45, 3,  1 ], // green
     [.32,.52, 6,  1 ], // tee
     [.05,.20,30, .65], // bunker
-    [ 0,  0,  0,  1 ], // water (splash)
+    // WATER'S FRICTION IS ONLY EVER READ BY THE PUTT PREVIEW - a played
+    // ball never rolls here, hazardEnd stops it the moment it is wet. It
+    // is high so the preview stops at the shoreline too: at 0 the roll
+    // never slows and never rests, and a putt aimed over a lake predicts
+    // 80yd across it. Columns 1, 2 and 4 are dead for the same reason.
+    [ 0,  0, 99,  1 ], // water (splash)
     [.25,.45,14,  1 ], // OB
 ];
 
@@ -647,7 +652,7 @@ function autoClub()
         return CLUB_PUTTER;
     if (s == SURF_BUNKER)
         return 9; // SW
-    // 15% OF HEADROOM, not the 2 yards this used to leave. A club chosen to
+    // 15% OF HEADROOM, never a bare fit. A club chosen to
     // just barely reach the pin cannot be pushed any further, and INTO A
     // WIND it has to be: a headwind at the top of the range takes about 14%
     // off a driver and more off the short clubs, so a bag matched exactly to
@@ -675,6 +680,11 @@ function autoClub()
 // yardage is the distance to it, so none of them can disagree with each other
 // or with the shot. FLOWN IN STILL AIR (the 0 passed to flyStep): reading the
 // wind is the player's job and the arrow is there for it.
+// predHit: the predPath index where the arc first clips a RISING face, or
+// 1e9 for a clear flight. The prediction skims such a face at full speed
+// where the real ball reflects off it and scrubs, so this marks the shots
+// the ring is lying about (measured: a driver into a 60% slope is
+// predicted 138yd and stops at 25).
 let predPath = [];
 function predictLanding(clubI, dir, spin, lieMul, power=1)
 {
@@ -736,6 +746,7 @@ function predictLanding(clubI, dir, spin, lieMul, power=1)
                 predPath.push({x: b.x, y: b.y, z: b.z});
                 break;
             }
+            b.hit = 1;
             b.y -= d1;  // still climbing: skim up the face and fly on
         }
         d0 = Math.max(d1, 0);

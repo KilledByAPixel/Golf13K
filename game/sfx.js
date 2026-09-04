@@ -154,7 +154,7 @@ function updateMusic()
 
     // a new chord every 4 bars, home again every 32
     if (beat%32 == 0)
-        bassNote = leadNote = chord = beat%128 ? chord + randSign() : 0;
+        bassNote = chord = beat%128 ? chord + randSign() : 0;
 
     // hat on eighths, plus the odd random one, louder mid-bar
     if (beat%2 == 0 || !randInt(9))
@@ -169,7 +169,7 @@ function updateMusic()
 
     // melody, an octave above the bass
     if (state == ST_TITLE)
-    if (beat%128 < 64 ? beat%8 == 0 : beat%2 == 0 || beat%8 == 7)
+    if (beat%128 < 64 ? beat%4 == 0 : beat%2 == 0 || beat%8 == 7)
     {
         const b = BASS_SCALE[mod(chord, BASS_SCALE.length)];
         const a = b+SCALE[mod(leadNote = beat%16 && leadNote+1, SCALE.length)];

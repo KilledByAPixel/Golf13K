@@ -92,7 +92,7 @@ function gameRenderPost()
         // 1.4 yd/s of air and a yard per second is 2.0455mph. The exact 2.864
         // prints the same integer at every wind after the |0.
         txt(`WIND ${hole.wind.s*2.86|0}mph`, W-18, pad+T*.05, T*.03, 'right');
-        drawWind(W-18-T*.04, pad+T*.12, T*.03);
+        drawWind(W-18-T*.05, pad+T*.12, T*.03);
     }
 
     if (state == ST_AIM || state == ST_SWING)
@@ -132,8 +132,8 @@ function gameRenderPost()
     if (msgTimer > 0)
     {
         const fade = Math.min(1, msgTimer/25);
-        const c = new Color(1,1,1,fade);
-        txt(msgText, midX, T*.3, T*.1, 'center', c, T*.01, new Color(0,0,0,fade));
+        const c = rgb(1,1,1,fade);
+        txt(msgText, midX, T*.3, T*.1, 'center', c, T*.01);
     }
 }
 
@@ -157,14 +157,13 @@ function tri(x, y, s, a, fill, w = 1, lw=.2)
     c.save();
     c.translate(x, y);
     c.rotate(a);
-    c.scale(s, -s);
     c.fillStyle = fill;
     c.beginPath();
-    c.lineTo(0, 1);
-    c.lineTo(w, -1);
-    c.lineTo(-w, -1);
-    c.closePath();
-    c.lineWidth = lw;
+    c.lineTo(0, -s);
+    c.lineTo(w*s, s);
+    c.lineTo(-w*s, s);
+    c.lineTo(0, -s);
+    c.lineWidth = lw*s;
     c.strokeStyle = BLACK;
     c.stroke();
     c.fill();
@@ -198,7 +197,7 @@ function renderMeter()
     grad.addColorStop(.06, '#f4f');
     grad.addColorStop(.11, WHITE);
     grad.addColorStop(.12, WHITE);
-    grad.addColorStop(.16, '#fd2');
+    grad.addColorStop(.16, GOLD);
     grad.addColorStop(.3, '#f21');
     grad.addColorStop(.5, '#f4f');
     grad.addColorStop(.7, '#2af');
@@ -224,7 +223,7 @@ function renderMeter()
 
     // caption above the bar, clear of the cursor's pointer triangle
     const cap = 'CLICK TO SWING!';
-    armed && txt(cap, W/2, by+bh/2, T*.04);
+    armed && txt(cap, W/2, by+bh/2, T*.04, 'center', hsl(0, 0, 1, .7+.3*Math.sin(stateTime*.05)));
 
     // power mark once chosen
     if (meterPhase == 2)
@@ -293,7 +292,7 @@ const fillRect = (x, y, w, h, col, a)=>
 
 // HUD text straight on the overlay context - the engine's drawTextScreen
 // does far more than this needs and costs 772 source bytes.
-const txt = (t, x, y, size, align='center', color=WHITE, w=size*.15, wc=BLACK)=>
+const txt = (t, x, y, size, align='center', color=WHITE, w=size*.15)=>
 {
     const c = overlayContext;
     // maxWidth on BOTH passes or the outline draws at the unsqueezed width.
@@ -302,12 +301,9 @@ const txt = (t, x, y, size, align='center', color=WHITE, w=size*.15, wc=BLACK)=>
     c.fillStyle = color;
     c.textAlign = align;
     c.font = size + 'px impact';
-    if (w)
-    {
-        c.strokeStyle = wc;
-        c.lineWidth = w;
-        c.strokeText(t, x, y, m);
-    }
+    c.strokeStyle = rgb(0,0,0,color.a);
+    c.lineWidth = w;
+    c.strokeText(t, x, y, m);
     c.fillText(t, x, y, m);
 }
 
@@ -407,15 +403,14 @@ function renderScorecard()
 
 function renderConfetti()
 {
-    const R = new RandomGenerator();
     const W = mainCanvasSize.x, T = mainCanvasSize.y;
     if (strokes <= hole.par)
-    for (let i=70; i--;)
+    for (let i=99; i--;)
     {
-        const rx = R.float(W), rs = R.float(3,5);
-        const y = ((stateTime*rs + i**3)%(T+40)) - 20;
-        fillRect(rx + Math.sin(stateTime*.05+i)*20, y, 6, 9,
-            hsl(R.float(), 1, .6), stateTime*.03*R.sign() + i);
+        const rx = W/2+Math.sin(i)*W/2, rs = 4+Math.sin(i**3);
+        const y = ((stateTime*rs + i**4)%(T+40)) - 20;
+        fillRect(rx + Math.sin(time+i)*50, y, 6, 9,
+            hsl(i**3.1, 1, .6), time*(i%2?1:-1) + i);
     }
 }
 

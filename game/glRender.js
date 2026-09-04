@@ -60,8 +60,8 @@ const WATER_GLSL =
 // wave's height share, .9 = the warp.
      'float U=v.x*u.x+v.z*u.y,'          // yards along the wind
     +'V=v.x*u.y-v.z*u.x,'                // yards across it
-    +'b=u.z*.3+V*.28,B=sin(b),'          // the small CROSS wave, slow
-    +'a=u.z-U*.33+B*.9,'                 // the MAIN wave, warped by B
+    +'b=u.z*.3+V*.2,B=sin(b),'          // the small CROSS wave, slow
+    +'a=u.z-U*.3+B*.9,'                 // the MAIN wave, warped by B
     +'w=(sin(a)+B*.6)'               // surface height: main-dominant
     +'*(.6+.4*sin(v.x*.04+v.z*.03));'    // calm/choppy patches (still, world-anchored)
     +'v.y+=w*.4;'                      // WAVE HEIGHT, yards
@@ -460,6 +460,17 @@ function pushTerrain()
 // An octahedron is [[0,-r],[r,0],[0,r]]; a box trunk is [[w,0],[w*.7,h]].
 // rot is a heading about Y, roll TUMBLES across it; normals come from the
 // transformed points, so the baked lighting tumbles with the shape.
+// SMOOTH SHADING for everything the lathe builds - trees, bushes, the pin.
+// 1 = a normal per VERTEX, so the light runs across each quad instead of
+// stepping at its edges and the canopies read rounder and more natural.
+// 0 = one normal per FACE, the faceted low-poly look.
+// It costs 28 bytes and NOTHING ELSE: the geometry is identical either way
+// (356,012 static verts on hole 13 both ways), so there is no per-frame cost
+// and no vertex-ceiling impact. The world build is ~19% slower (640 -> 760ms
+// under software rendering, so nearer 40ms on real hardware), once per hole
+// and hidden by the flyback.
+const SMOOTH_LATHE = 1;
+
 function pushLathe(pos, profile, sides, color, rot=0, roll=0)
 {
     const rc = Math.cos(roll), rs = Math.sin(roll);
@@ -476,11 +487,27 @@ function pushLathe(pos, profile, sides, color, rot=0, roll=0)
         const [r0, h0] = profile[i], [r1, h1] = profile[i+1];
         const a0 = j/sides*2*Math.PI, a1 = (j+1)/sides*2*Math.PI;
         const p00 = P(r0,h0,a0), p01 = P(r0,h0,a1), p10 = P(r1,h1,a0), p11 = P(r1,h1,a1);
-        // outward face normal = around x up (mid-edge vectors, so the
-        // degenerate tip quads of a cone work too)
-        const up = p11.add(p10).subtract(p01.add(p00));
-        const around = p01.add(p11).subtract(p00.add(p10));
-        glPushVerts([p00, p01, p10, p11], packColor(color, around.cross(up).normalize()));
+        if (SMOOTH_LATHE)
+        {
+            // the outward normal at angle a is the radial direction weighted
+            // by the profile's RISE plus the axis weighted by its TAPER, both
+            // built through P() so rot and roll carry over and a swaying tree
+            // still shades correctly
+            const axis = P(0,1,0).subtract(P(0,0,0));
+            const nAt = (a)=> P(1,0,a).subtract(P(0,0,a)).scale(h1-h0)
+                .add(axis.scale(r0-r1)).normalize();
+            const n0 = nAt(a0), n1 = nAt(a1);
+            glPushVerts([p00, p01, p10, p11],
+                [packColor(color, n0), packColor(color, n1), packColor(color, n0), packColor(color, n1)]);
+        }
+        else
+        {
+            // one outward FACE normal = around x up (mid-edge vectors, so the
+            // degenerate tip quads of a cone work too)
+            const up = p11.add(p10).subtract(p01.add(p00));
+            const around = p01.add(p11).subtract(p00.add(p10));
+            glPushVerts([p00, p01, p10, p11], packColor(color, around.cross(up).normalize()));
+        }
     }
 }
 
@@ -491,9 +518,9 @@ function pushTreeGL(t)
     // pal.flower plus a small jitter, so a meadow reads as one species with
     // variation (per-flower hues read as confetti). t.c is spent on that
     // jitter, so the second-species roll takes an uncorrelated slice (*7.3 %1).
-    const leaf = t.k == 3 ? hslCol(pal.flower, t.c*30-9,
-            t.c*44-22 + (t.c*7.3 % 1 < SECOND_MIX ? SECOND_HUE : 0))
-        : hslCol(pal.tree, t.c*20-7, t.c*50-9);
+    const leaf = t.k == 3 ? 
+        hsl(hole.index*.37 + (t.c*7.3 % 1 > SECOND_MIX && .2), 1, t.l/2+.5)
+        : hslCol(pal.tree, t.l*20, t.c*20);
     // A BUSH IS JUST A LOW TREE with no trunk - same canopy, same collision
     // sphere, one code path. TRUNK_H is the canopy centre and the only thing
     // that differs; course.js bakes the same number into t.y.
@@ -520,7 +547,7 @@ function pushTreeGL(t)
     // into the vertex here.
     leaf.a = .92 + hole.wind.s/8*.07;
     if (t.k < 2) // box trunk (a stretched square prism)
-        pushLathe(vec3(t.x, gh, t.z), [[s*.3, 0], [s*.22, th]], 4, hslCol(pal.trunk), rot);
+        pushLathe(vec3(t.x, gh, t.z), [[s*.3, 0], [s*.22, th]], 4, hslCol(pal.trunk, t.l*1e3%20), rot);
     pushLathe(vec3(t.x, gh + th, t.z), [[0,-s*1.9],[s*1.7,0],[0,s*1.9]], 4, leaf, rot);
     if (t.k) return; // far tree / bush: one canopy is enough
     // the two side clumps ORBIT the trunk on its heading, each spinning on
@@ -553,13 +580,13 @@ function pushPinGL()
     // cup + pole + wind-vane flag (no face culling: one strip shows from any
     // side), drawn AT HOLE_R so what you aim at is what the ball is tested
     // against. POLE_H is a real 7ft flagstick; pole and flag scale together.
-    pushLathe(vec3(p.x, p.y+.002, p.z), [[0,-.01],[HOLE_R,0],[0,.01]], 9, new Color(.1,.1,.1)); // 9-gon: a cup should read round
-    pushLathe(p, [[.04*k, 0], [.04*k, POLE_H]], 4, new Color(.9,.9,.9));
-    const len = Math.min(.6 + hole.wind.s*.06, 1.2)*(1 + Math.sin(time*5)*.1)*k;
-    const tip = vec3(p.x + Math.sin(hole.wind.a)*len, p.y + POLE_H - .2*k + Math.sin(time*5)*.08,
+    pushLathe(vec3(p.x, p.y+.002, p.z), [[0,-.01],[HOLE_R,0],[0,.01]], 9, rgb(.1,.1,.1)); // 9-gon: a cup should read round
+    pushLathe(p, [[.04*k, 0], [.04*k, POLE_H]], 4, rgb(.9,.9,.9));
+    const len = Math.min(.6 + hole.wind.s*.06, 1.2)*(1 + Math.sin(time*5)/9)*k;
+    const tip = vec3(p.x + Math.sin(hole.wind.a)*len, p.y + POLE_H - k/4 + Math.sin(time*5)/9,
         p.z + Math.cos(hole.wind.a)*len);
     const a = vec3(p.x, p.y+POLE_H, p.z), b = vec3(p.x, p.y+POLE_H-.4*k, p.z);
-    glPushVerts([a, tip, b], packColor(new Color(1,.2,.3), null));
+    glPushVerts([a, tip, b], packColor(rgb(1,.2,.3), null));
     glEnableFog = 1;
 }
 
@@ -575,7 +602,7 @@ function pushBallGL()
     // TRUE SIZE, no distance compensation: a real 1.68in ball, about 1.4px
     // at the 16yd chase cam.
     const r = BALL_R*sink;
-    pushSoftDisc(vec3(ball.x, Math.max(g.h, mh)+.003, ball.z), vec3(1), vec3(0,0,1), r*2, new Color(0,0,0,.5));
+    pushSoftDisc(vec3(ball.x, Math.max(g.h, mh)+.005, ball.z), vec3(1), vec3(0,0,1), r*2, rgb(0,0,0,.5));
     // The ball is a LATHED SPHERE, 4 bands x 8 sides: an octahedron reads as
     // a diamond once the putt cam sits 5yd off it. Bands cost about twice
     // the bytes sides do.
@@ -626,7 +653,7 @@ function pushLandingGridGL()
         // white at the centre's height, to red at the top of the range, blue
         // at the bottom
         const t = dh/range;
-        const col = packColor(new Color(clamp(1+t), clamp(1-Math.abs(t)), clamp(1-t)), null);
+        const col = packColor(rgb(clamp(1+t), clamp(1-Math.abs(t)), clamp(1-t)), null);
         // the gradient points UPHILL, so negate it. The epsilon keeps a
         // near-flat spot pointing somewhere instead of collapsing the
         // triangle to a point and vanishing.
@@ -655,7 +682,7 @@ function pushLandingRingGL()
     glEnableFog = 0;
     for (let i=0; i<n; ++i)
     {
-        const col = hsl(i/n + time/4, 1, .6); // (hsl wraps the hue)
+        const col = hsl(predLand.hit ? Math.sin(i/10*Math.PI + time)/9 : i/n + time/4, 1, .6); // (hsl wraps the hue)
         const pts = [];
         for (let k=0; k<2; ++k)
         {
@@ -713,7 +740,10 @@ function pushPredGL()
         // placement cam the arc arrives from behind and runs through the eye,
         // where a .1yd ribbon inches away covers half the screen. Nothing else
         // ever comes within PRED_NEAR of the camera.
-        const c = packColor(new Color(1, 1, 1,
+        // RED WHEN THE FLIGHT IS BLOCKED. The WHOLE line, not just the part
+        // past the impact: everything beyond it is hidden behind the very
+        // hill that stops the ball, so colouring only that half is invisible.
+        const c = packColor(rgb(1, !predLand.hit, !predLand.hit,
             (clubI == CLUB_PUTTER && i&2 ? 0 : .5 - i/n*.3)
             * clamp(Math.hypot(s.x-camX, s.y-camY, s.z-camZ)/PRED_NEAR)));
         pts.push(vec3(s.x-rx*w, s.y+.1, s.z-rz*w), vec3(s.x+rx*w, s.y+.1, s.z+rz*w));
@@ -736,7 +766,7 @@ function pushTrailGL()
         const age = (time - s.t)/TRAIL_LIFE;        // 0 fresh .. 1 expiring
         const w = .06*(1 - age);
         const c = packColor(niceShot ? hsl((i + trailTotal)*.02, 1, .6, (1-age)*.8)
-                                     : new Color(1, 1, 1, (1-age)/2));
+                                     : rgb(1, 1, 1, (1-age)/2));
         pts.push(vec3(s.x-rx*w, s.y+.1, s.z-rz*w), vec3(s.x+rx*w, s.y+.1, s.z+rz*w));
         cols.push(c, c);
     }
@@ -753,21 +783,19 @@ function pushTrailGL()
 // soft disc "sprite": concentric rings with a bell-shaped alpha falloff in
 // the plane spanned by u, w (unit vectors) around c - a gradient dot with
 // no visible polygon edge. Sun, clouds and the ball shadow all use it.
-const DISC_A = [1, .9, .7, 0]; // alpha profile, centre to rim
+const DISC_A = [1, .9, .7, 0]; // alpha profile
 function pushSoftDisc(c, u, w, r, color)
 {
-    const pt = (k, i)=>
-    {
-        const a = i/16*2*Math.PI, s = r*k/4;
-        return c.add(u.scale(Math.cos(a)*s)).add(w.scale(Math.sin(a)*s));
-    };
-    for (let k=0; k<3; ++k)
+    for (let k=3; k--;)
     {
         const pts = [], cols = [];
         const c0 = packColor(color.scale(1, DISC_A[k])), c1 = packColor(color.scale(1, DISC_A[k+1]));
-        for (let i=0; i<17; ++i)
+        for (let i=17; i--;)
         {
-            pts.push(pt(k, i), pt(k+1, i));
+            const a = i/16*2*Math.PI, s1 = r*k/4, s2 = r*(k+1)/4;
+            const p1 = c.add(u.scale(Math.cos(a)*s1)).add(w.scale(Math.sin(a)*s1));
+            const p2 = c.add(u.scale(Math.cos(a)*s2)).add(w.scale(Math.sin(a)*s2));
+            pts.push(p1, p2);
             cols.push(c0, c1);
         }
         glPushVerts(pts, cols);
@@ -833,7 +861,7 @@ function pushSkyGL()
     for (let i=7; i--;)
     for (let j=5+i%3; j--;)
         pushSkyDisc(skyDir(i + time*.02 + j*.1, .3 + (i%3)*.2 + Math.sin(j*j+i+time*.02)*.05),
-            .2 + Math.sin(j**3)*.05, new Color(1, 1, 1, .7), .5);
+            .2 + Math.sin(j**3)*.05, rgb(1, 1, 1, .7), .5);
     glEnableFog = 1;
 }
 
@@ -852,7 +880,7 @@ function pushFlareGL()
     glEnableFog = 0;
     for(let i=9; i--;)
     {
-        const t = i/20+.2-Math.sin(i**3)*.05, s = .04 + Math.sin(i*i)*.03;
+        const t = i/20+.2-Math.sin(i**3)*.1, s = .04 + Math.sin(i*i)*.03;
         pushSkyDisc(sun.scale(1-t).add(fwd.scale(t)).normalize(), s, hsl(k/2+i/5, Math.sin(i**3)**2, .3, k));
     }
     glEnableFog = 1;

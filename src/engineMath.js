@@ -314,7 +314,7 @@ function oscillate(frequency=1, amplitude=1, t=time, offset=0, type=0)
  * @return {boolean}
  * @memberof Math
  */
-function isNumber(n) { return typeof n == 'number' && !isNaN(n); }
+function isNumber(n) { return typeof n == 'number' && !isNaN(n) || typeof n == 'boolean'; }
 
 /**
  * Check if object can be converted to a string

@@ -135,8 +135,7 @@ function startHole(w)
     glContext && buildWorld();
     ball.x = ball.z = 0; // the tee is the origin
     ball.y = ballGround().h;
-    ball.vx = ball.vy = ball.vz = 0;
-    strokes = 0;
+    ball.vx = ball.vy = ball.vz = strokes = 0;
     trail = [];
     setState(ST_INTRO);
 }
@@ -374,8 +373,8 @@ function updateAim()
     {
         // The bot LINES UP here and swings SETTLE_T later, so this is the
         // pause before it takes aim, not before it hits: 15 + the 45 frame
-        // ease is the same full second the swing used to wait, and the view
-        // now arrives on the aim before the ball leaves rather than with it.
+        // ease is a full second in all, and the view arrives on the aim
+        // before the ball leaves rather than with it.
         if (stateTime > 15) botSwing();
         return;
     }

@@ -18,13 +18,10 @@ const SURF_NAMES = ['ROUGH','FAIRWAY','GREEN','TEE','SAND','WATER','OB'];
 // goes the long way round so mid-round is dusk, not a green sky. hsl() wraps.
 const PAL =
 {
-    rough:[[95,45,36],[42,45,32]], fair:[[112,60,45],[85,45,40]], green:[[130,62,52],[120,55,46]],
+    rough:[[95,45,36],[42,45,32]], fair:[[112,60,45],[85,45,40]], green:[[130,62,62],[120,55,56]],
     sand:[[47,85,74],[28,85,66]], water:[[203,80,55],[255,60,50]],
     sky0:[[207,90,70],[268,70,58]], sky1:[[168,70,86],[378,95,72]],
-    tree:[[118,52,32],[15,55,32]], trunk:[[25,50,30],[-10,30,28]], sun:[[50,100,90],[0,100,60]],
-    // WILDFLOWERS: only saturation and lightness drift; the hue is replaced
-    // per hole in genHole, so flowers pop instead of easing into the season.
-    flower:[[0,90,72],[0,80,68]],
+    tree:[[127,55,32],[24,48,32]], trunk:[[25,50,30],[-10,30,28]], sun:[[50,100,90],[0,100,60]],
 };
 
 // classic 18 hole table. dogleg: 0 none, +-(0..1) single bend
@@ -57,7 +54,7 @@ const CLASSIC_HOLES =
     [5,1.05, 30,  2.2, 2, .5,1.0,  1],  // hairpin par 5 (see dogleg note)
     [3,1.10,  0,   0,  4, .5, .5,  1],  // bunkered par 3 over broken ground
     [4,1.20, 22,   1,  4, .6,1.3,1.2],  // NARROWEST fairway on the course
-    [5,1.10, 28,   2,  2, .8,1.4,1.1],
+    [5,1.10, 28,   2,  2, .9,1.4,1.1],
 ];
 
 let hole;          // current generated hole
@@ -222,9 +219,6 @@ function genHole(courseSeed, index, row)
     const pal = {};
     for (const k in PAL)
         pal[k] = PAL[k][0].map((v, i)=> lerp(v, PAL[k][1][i], index/17));
- 
-    // ...except the wildflower hue, re-rolled per hole (see PAL)
-    pal.flower[0] = R.float(1e3);
 
     hole = {par, len, fw, hills, pal, index,
          path: [], bunkers: [], waters: [], trees: []};
@@ -281,7 +275,7 @@ function genHole(courseSeed, index, row)
     // 7 keeps about one 20mph+ hole a round; 6 deletes it. glRender's leaf.a
     // divides by 1+MAXWIND for the foliage sway - change one, change the other.
     const MAXWIND = 7;
-    hole.wind = {a: rand(PI, -PI), s: 1 + rand()**2*MAXWIND};
+    hole.wind = {a: rand(PI*2), s: 1 + rand()**2*MAXWIND};
 
     // bunkers: randomly placed sand
     for (let i=bunkerN; i--;)
@@ -341,7 +335,7 @@ function genHole(courseSeed, index, row)
 
     // trees {x, z, s: size, c: colour jitter, k: kind} - k 0 = full tree,
     // 1 = far tree (one canopy), 2 = bush, 3 = wildflower; ODD kinds are scenery
-    const addTree = (x, z, s, k)=> hole.trees.push({x, z, s, c: R.float(), k});
+    const addTree = (x, z, s, k)=> hole.trees.push({x, z, s, c: R.float(), l: R.float(), k});
 
     // framing trees: scattered outside the fairway along the hole
     const treeCount = Math.min(400, treeDen*len*.6 | 0);

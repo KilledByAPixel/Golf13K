@@ -100,7 +100,7 @@ function groundColor(x, z, g)
 {
     const pal = hole.pal;
     let c, dl = 0;
-    if (g.s == SURF_FAIRWAY || g.s == SURF_TEE)
+    if (g.s == SURF_FAIRWAY | g.s == SURF_TEE)
     {
         c = pal.fair;
         dl = (lastAlong/9 & 1)*5; // distToPath was just called by groundAt
@@ -108,7 +108,10 @@ function groundColor(x, z, g)
     else if (g.s == SURF_GREEN)
     {
         c = pal.green;
-        dl = (Math.hypot(x-hole.pin.x, z-hole.pin.z)/2.6 & 1)*5;
+        //dl = (x/5|0)%2*15 + (z/7|0)%2*15;
+        //dl = Math.sin(x/2|0)*15 + Math.sin(z/2)*15;
+        //dl = (Math.hypot(x-hole.pin.x, z-hole.pin.z)/2.6 & 1)*5;
+        //dl = -Math.hypot(x-hole.pin.x, z-hole.pin.z);
     }
     else if (g.s == SURF_BUNKER) c = pal.sand;
     else if (g.s == SURF_WATER)
@@ -116,10 +119,10 @@ function groundColor(x, z, g)
         c = pal.water;
         return hslCol(c).scale(1, .997); // 254/255 marks water for the shader wave
     }
-    else // rough + OB darker; the fine mottle fades out toward the periphery
-    {    // (its cells are far too coarse for it - it would streak)
+    else // rough + OB
+    {
         c = pal.rough;
-        dl = (g.s == SURF_OB ? -8 : 0) + (noise2(x*.15, z*.15)-.5)*6*(1 - clamp((lastDist-100)/100));
+        dl = (6*noise2(x/7, z/7)-3)*(1 - clamp((lastDist-100)/100));
     }
     return hslCol(c, dl);
 }

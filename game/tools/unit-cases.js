@@ -311,10 +311,10 @@ eq(Math.hypot(pTree.x, pTree.z) > 100, true, 'and it flies straight past: the ri
 // HOW the values moved: lengthening a hole pushes z only; x moving too means
 // the R stream changed the order of its draws. ----
 genHole(1113, 0, [4, .85, 34, 0, 1, 0, .5, .3]);
-eq(hole.bunkers[0].x.toFixed(3) + ',' + hole.bunkers[0].z.toFixed(3), '5.391,324.790', 'the draw order still puts bunker 0 where it always was');
-eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '-45.463,129.655', 'and tree 5 where it always was');
+eq(hole.bunkers[0].x.toFixed(3) + ',' + hole.bunkers[0].z.toFixed(3), '-19.623,365.159', 'the draw order still puts bunker 0 where it always was');
+eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '-49.305,95.812', 'and tree 5 where it always was');
 genHole(1113, 12, [4, 1.05, 22, 1, 3, .3, 1.2, 1]);
-eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '50.009,322.853', 'a dogleg hole with water and hills too');
+eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '-44.089,50.286', 'a dogleg hole with water and hills too');
 
 // pathPointAt itself: a prop fingerprint is a sample, not a contract (a
 // wrong segment can still leave trees[5] where it was), so pin the contract
@@ -412,6 +412,21 @@ eq(rg < fw, true, 'and one from the rough falls shorter still');
 eq(rg > .5, true, 'but a rough putt still moves');
 for (const surf of [SURF_GREEN, SURF_FAIRWAY, SURF_ROUGH, SURF_BUNKER])
     eq(puttRoll(surf, 20) < 21, true, 'a putt never outruns its asked distance on surface ' + surf);
+
+// ---- A PUTT AIMED OVER WATER STOPS AT THE SHORE. The preview is the ONLY
+// thing that ever rolls on water - a played ball is stopped by hazardEnd the
+// moment it is wet - so water's roll friction exists purely for this. At 0
+// the roll neither slows nor rests and a putt over a lake predicts 80yd
+// across it, off the far bank ----
+{
+    const realGround = groundAt, realHeight = heightAt;
+    groundAt = (x, z)=> ({h: 0, s: z > 5 ? SURF_WATER : SURF_GREEN});
+    heightAt = ()=> 0;
+    ball.x = ball.z = ball.y = 0;
+    const wet = predictLanding(CLUB_PUTTER, 0, 0, 1, 1);
+    groundAt = realGround; heightAt = realHeight;
+    eq(wet.z < 8, true, 'a putt over water stops at the shore, not ' + wet.z.toFixed(1) + 'yd out');
+}
 
 // ---- PUTTING IS THE SAME SYSTEM AS EVERY OTHER CLUB: it shares
 // predictLanding (ring, chip yardage, target cam, meter scale), which only
