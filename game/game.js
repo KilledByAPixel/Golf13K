@@ -130,9 +130,11 @@ function startHole(w)
     genHole(courseSeed, holeIndex, courseRows[holeIndex]);
     if (w) hole.wind = w;
     glContext && buildWorld();
-    ball.y = ballGround().h;
-    // the tee is the origin
+    // The tee is the origin, and y must be read AFTER x and z are there:
+    // ballGround() samples groundAt(ball.x, ball.z), so reading it first
+    // takes the height at wherever the LAST shot finished.
     ball.x = ball.z = ball.vx = ball.vy = ball.vz = strokes = 0;
+    ball.y = ballGround().h;
     trail = [];
     setState(ST_INTRO);
 }
