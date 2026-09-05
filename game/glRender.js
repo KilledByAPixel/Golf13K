@@ -531,7 +531,7 @@ function pushTreeGL(t)
     // on purpose (rainbowFlowers), being the treeless links.
     const rainbowFlowers = hole.index == 8;
     const leaf = t.k == 3 ? 
-        hsl(rainbowFlowers ? R.float() : hole.index*.37 + (R.float() > SECOND_MIX && .2), 1, R.float(.5,1))
+        hsl(rainbowFlowers ? t.z/99 : hole.index*.37 + R.bool(SECOND_MIX) * .3, 1, R.float(.6,1))
         : hslCol(pal.tree, R.float(20), R.float(40));
     // A BUSH IS JUST A LOW TREE with no trunk - same canopy, same collision
     // sphere, one code path. TRUNK_H is the canopy centre and the only thing

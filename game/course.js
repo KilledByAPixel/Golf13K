@@ -47,7 +47,7 @@ const CLASSIC_HOLES =
     [4,1.00, 36,  -1.5, 3, .8,  0, .3],   // LINKS: not a tree, 3 bunkers, the wind is the hole
     [4, .95, 36, -.9, 3, .5,  1, .7],   // the river
     [5,1.00, 36,   2, 2, .7,  1, .6],   // S par 5
-    [4, .58, 30,   0, 1,  1, .8, .6],   // DRIVABLE island par 4, 238yd: driver over the lake, or lay up and wedge
+    [4, .56, 30,   0, 1,  1, .8, .6],   // DRIVABLE island par 4, 230yd: driver over the lake, or lay up and wedge
     // back: Cliffs - narrow, hilly, mean
     [4,1.05, 30,   .5, 3, .3,1.2,1.1],  // the tree in the fairway
     [4,1.10, 28,   -1, 0,  .6,1.2,1.3],  // the HILLS are the hazard: no sand, some water
