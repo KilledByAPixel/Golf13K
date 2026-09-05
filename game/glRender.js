@@ -514,26 +514,33 @@ function pushLathe(pos, profile, sides, color, rot=0, roll=0)
 // t.k: 0 = full tree, 1 = far tree (one canopy), 2 = bush, 3 = wildflower
 function pushTreeGL(t)
 {
-    const gh = meshHeightAt(t.x, t.z), pal = hole.pal, s = t.s;
-    const c = hashN(t.x, t.z), l = hashN(t.z, t.x);
+    // A STREAM PER TREE, seeded from where it stands, so a prop keeps its
+    // look across the re-bakes hideTrees runs every shot - and costs no stored
+    // field. THE ROTATION MUST TAKE THE FIRST DRAW. xorshift returns a nearby
+    // first value for a nearby seed, and neighbours ARE nearby seeds: measured
+    // over the classic 18, the first draws of two trees within 6yd match to
+    // .05 for 84% of pairs, against the 10% two independent numbers give.
+    // Every later draw is clean (mean gap .32 to .34), so the first is spent
+    // where it cannot show - scaled by 1e3, a heading wraps many times over
+    // and even neighbours end up pointing anywhere.
+    const R = new RandomGenerator(t.x*9+t.z*1e4);
+    const rot = R.float(1e3);
+    const gh = meshHeightAt(t.x, t.z), pal = hole.pal;
     // pal.flower plus a small jitter, so a meadow reads as one species with
-    // variation (per-flower hues read as confetti). t.c is spent on that
-    // jitter, so the second-species roll takes an uncorrelated slice (*7.3 %1).
+    // variation - per-flower hues read as confetti. One hole gets the confetti
+    // on purpose (rainbowFlowers), being the treeless links.
+    const rainbowFlowers = hole.index == 8;
     const leaf = t.k == 3 ? 
-        hsl(hole.index*.37 + (c*7.3 % 1 > SECOND_MIX && .2), 1, l/2+.5)
-        : hslCol(pal.tree, l*20, c*40);
+        hsl(rainbowFlowers ? R.float() : hole.index*.37 + (R.float() > SECOND_MIX && .2), 1, R.float(.5,1))
+        : hslCol(pal.tree, R.float(20), R.float(40));
     // A BUSH IS JUST A LOW TREE with no trunk - same canopy, same collision
     // sphere, one code path. TRUNK_H is the canopy centre and the only thing
     // that differs; course.js bakes the same number into t.y.
     const th = trunkH(t);
-    // Every prop faces its own way. The POSITION is the random number, so
-    // this costs no rand() draw - a new draw in genHole would re-roll every
-    // hole's tree and bush layout, and bushes are in play.
-    const rot = t.x*7 + t.z*5;
     // A five-sided CUP: the faces splay like petals and still read from the
     // low camera, where a flat disc goes edge-on; an even count reads as a crystal.
     if (t.k == 3)
-        return pushLathe(vec3(t.x, gh, t.z), [[0,0],[2*s,3*s]], 5, leaf, rot);
+        return pushLathe(vec3(t.x, gh, t.z), [[0,0],[2*t.s,3*t.s]], 5, leaf, rot);
     // FOLIAGE SWAY RIDES THE LEAF ALPHA. The vertex shader reads a colour in
     // the (.9, .995) band as leaves, offsets them by (a-.9)*3 yards of a
     // two-wave rustle, then resets alpha to 1 so they still draw opaque. So
@@ -548,8 +555,8 @@ function pushTreeGL(t)
     // into the vertex here.
     leaf.a = .92 + hole.wind.s/8*.07;
     if (t.k < 2) // box trunk (a stretched square prism)
-        pushLathe(vec3(t.x, gh-1, t.z), [[s*.3, 0], [s*.2, th]], 4, hslCol(pal.trunk, l*1e4%20), rot);
-    pushLathe(vec3(t.x, gh + th, t.z), [[0,-s*1.6],[s*1.6,0],[0,s*1.6]], 4, leaf, rot);
+        pushLathe(vec3(t.x, gh-1, t.z), [[t.s*.3, 0], [t.s*.2, th]], 4, hslCol(pal.trunk, R.float(20)), rot);
+    pushLathe(vec3(t.x, gh + th, t.z), [[0,-t.s*1.6],[t.s*1.6,0],[0,t.s*1.6]], 4, leaf, rot);
     if (t.k) return; // far tree / bush: one canopy is enough
     // the two side clumps ORBIT the trunk on its heading, each spinning on
     // its own multiple of it, and take HEIGHT and size off the same heading
@@ -559,9 +566,9 @@ function pushTreeGL(t)
     for(let i=2;i--;)
     {
         const r = rot + i*rot*1e3;
-        const dx = Math.sin(r)*s*.9, dz = Math.cos(r)*s*.9;
-        const r1 = s + dz/4;
-        pushLathe(vec3(t.x + dx, gh + s*3 + dz, t.z + dz), [[0,-r1],[r1,0],[0,r1]], 4, leaf, rot*3);
+        const dx = Math.sin(r)*t.s*.9, dz = Math.cos(r)*t.s*.9;
+        const r1 = t.s*R.float(.7,1);
+        pushLathe(vec3(t.x + dx, gh + t.s*3 + dz, t.z + dz), [[0,-r1],[r1,0],[0,r1]], 4, leaf, rot*3);
     }
 }
 
