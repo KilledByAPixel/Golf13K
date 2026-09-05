@@ -306,7 +306,7 @@ function genHole(courseSeed, index, row)
     hole.wind = {a: rand(PI*2), s: 1 + rand()**2*MAXWIND};
 
     // bunkers: randomly placed sand
-    for (let i=bunkerN; i--;)
+    for (let i=bunkerN, bunkerSide = R.sign(); i--;)
     {
         const a = R.float(1e3);
         const d = hole.gr + R.float(2, 7);
@@ -316,9 +316,9 @@ function genHole(courseSeed, index, row)
         else
         {
             // fairway bunker at a landing zone
+            bunkerSide *= -1;
             const p = pathPointAt(len*R.float(.4, .9));
-            const side = R.sign();
-            hole.bunkers.push({x: p.x + side*(fw/2 + R.float(-2,4)), z: p.z,
+            hole.bunkers.push({x: p.x + bunkerSide*(fw/2 + R.float(-2,4)), z: p.z,
                             rx:R.float(6,18), rz:R.float(6,18)});
         }
     }

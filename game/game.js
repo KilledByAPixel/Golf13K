@@ -596,6 +596,11 @@ function updateHoleOut()
 ///////////////////////////////////////////////////////////////////////////////
 // engine callbacks
 
+// The round in progress, printed under CONTINUE on the title the way CLASSIC
+// and REMIX print their bests. Two sites: gameInit keeps the saved card, and
+// the menu in hud.js totals it. At 0 Closure folds both out.
+const CONTINUE_SCORE = 0;
+
 function gameInit()
 {
     // Title backdrop: the saved hole, on its own seed. |0 rather than +, so a
@@ -606,6 +611,9 @@ function gameInit()
         courseSeed = v[0]|0;
         remixMode = courseSeed != CLASSIC_SEED;
         holeIndex = v[1]|0;
+        // the card too, so the title can print the round in progress under
+        // CONTINUE - startCourse clears it again for a new round
+        CONTINUE_SCORE && (scores = v.slice(7).map(Number));
     }
     courseRows = genCourse(courseSeed, remixMode);
     startHole();

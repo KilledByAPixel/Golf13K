@@ -59,7 +59,14 @@ function gameRenderPost()
         for (let i=3; i--;)
         {
             const r = menuRect(i), cx = r.x + r.w/2;
-            const best = i && localStorage[(i > 1 ? 'sg_best_r' : 'sg_best_c')];
+            // Under each button: CLASSIC and REMIX show their BEST, CONTINUE
+            // the round IN PROGRESS - gameInit loads the save's card, so the
+            // game's own score functions already have it. The trailing '' is
+            // what makes a LEVEL round print: bests are strings, so '0'
+            // passes the truth test below, and a bare 0 would not.
+            const best = CONTINUE_SCORE && !i
+                ? savedGame && scoreTotal() - parTotal(holeIndex) + ''
+                : i && localStorage[i > 1 ? 'sg_best_r' : 'sg_best_c'];
             // REMIX greys out until classic is beaten at par or better.
             // CONTINUE lights up for a save OR a finished round, since it
             // re-opens the final scorecard - the only way back to it.
@@ -270,7 +277,10 @@ const panel = (x, y, w, h, r)=>
     const c = overlayContext;
     c.fillStyle = '#000a';
     c.beginPath();
-    c.roundRect(x, y, w, h, r);
+    if (c['roundRect'])
+        c['roundRect'](x, y, w, h, r);
+    else
+        c.rect(x, y, w, h);
     c.fill();
 }
 
