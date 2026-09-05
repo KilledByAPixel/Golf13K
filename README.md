@@ -8,6 +8,8 @@ An 18 hole golf course in real 3D, in under 13 kilobytes! Every hole is built fr
 
 Shoot par or better on the classic to unlock remix mode, and get a brand new course every time you play.
 
+Sunshine is where rainbows and unicorns meet, so I made a game about the sun and the beauty of nature. The rainbows are everywhere once you look for them: the swing meter, the aim ring, the ball trail, the water and the lens flare.
+
 Best in Chrome, great on phones too. Created by Frank Force for JS13k 2026
 
 ## 🕹️ Controls
