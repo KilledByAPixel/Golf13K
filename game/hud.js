@@ -29,8 +29,20 @@ function gameRenderPost()
     const dpr = devicePixelRatio;
     overlayCanvas.width = W*dpr;
     overlayCanvas.height = T*dpr;
-    overlayCanvas.style.width = W + 'px';
-    overlayCanvas.style.height = T + 'px';
+    // Normally both canvases ARE the window, so CSS pixels are the honest
+    // measure. Under a fixed canvas size (ASPECT, dev only) the engine scales
+    // glCanvas with CSS to letterbox it, and the overlay has to take the same
+    // treatment or the HUD sits at 1:1 over a scaled scene.
+    if (debug && canvasFixedSize.x)
+    {
+        overlayCanvas.style.width = glCanvas.style.width;
+        overlayCanvas.style.height = glCanvas.style.height;
+    }
+    else
+    {
+        overlayCanvas.style.width = W + 'px';
+        overlayCanvas.style.height = T + 'px';
+    }
     overlayContext.scale(dpr, dpr);
     // round joins AND caps for every stroke (text outlines look bad without
     // both) - set per frame because the re-size above resets the context
@@ -360,8 +372,10 @@ function rainbowText(t, x, y, size, style=0)
         }
         // clamp to width of canvas
         const scale = Math.min(1, .9*mainCanvasSize.x / w);
-        ctx.strokeStyle = hsl(0, 0, Math.sin(i/4+style-time*2)**8/2);
-        ctx.fillStyle = hsl(style/2+i/9+time/5, 1-style, style? .7+Math.sin(i/4+style-time*2)**8*.3 : .6);
+        ctx.strokeStyle = DEV_THUMBNAIL ? '#000' : hsl(0, 0, Math.sin(i/4+style-time*2)**8/2);
+        ctx.fillStyle = DEV_THUMBNAIL ? 
+        hsl(style/2+i/9, 1-style, style?.7:.6) :
+        hsl(style/2+i/9+time/5, 1-style, style? .9+Math.sin(i/4+style-time*2)**8*.1 : .7);
         ctx.strokeText(c, px-w/2*scale, y, cw, w*scale);
         ctx.fillText(c, px-w/2*scale, y, w*scale);
         px += cw*scale;

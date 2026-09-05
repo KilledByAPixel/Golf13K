@@ -495,7 +495,7 @@ function devUpdate()
         if (!(frame%2)) trailPush(time);
         if (treeHit) { showMsg('TREE!'); treeHit = 0; }
     }
-    const sp = keyIsDown('ShiftLeft') ? 4 : 1;
+    const sp = keyIsDown('ShiftLeft') ? 2 : .2;
     const fwd = (keyIsDown('KeyW')?1:0) - (keyIsDown('KeyS')?1:0);
     const str = (keyIsDown('KeyD')?1:0) - (keyIsDown('KeyA')?1:0);
     camX += (Math.sin(camYaw)*cpv*fwd + Math.cos(camYaw)*str)*sp;
@@ -596,6 +596,9 @@ function devInit()
         }
     });
     // harness hooks
+    // a capture session survives reloads
+    const asp = localStorage['sg_aspect'];
+    if (asp) canvasFixedSize = vec2(...asp.split(',').map(Number));
     const q = new URLSearchParams(location.search);
     autoPlay = +q.get('auto') || 0;
     fastMode = +q.get('fast') || 0;
@@ -674,6 +677,19 @@ function devInit()
         v ? localStorage['sg_skip'] = 1 : delete localStorage['sg_skip'];
         window['CHEATS'](1); // SKIP() implies CHEATS() on, so the keys work
         return v ? 'reload jumps into the game' : 'reload stops at the title';
+    };
+    // FIXED ASPECT for video capture: render at an exact size and let the
+    // engine letterbox it, black bars filling whatever the window is not.
+    // ASPECT() is 1920x1080, ASPECT(1080, 1920) vertical, ASPECT(0) off.
+    // canvasFixedSize is the engine's own path and the release STRIPS it,
+    // so none of this can reach the zip. Persisted, so a reload mid-capture
+    // keeps the framing.
+    window['ASPECT'] = (w = 1920, h = w*9/16|0)=>
+    {
+        canvasFixedSize = vec2(w, h);
+        w ? localStorage['sg_aspect'] = [w, h]
+          : delete localStorage['sg_aspect'];
+        return w ? `canvas fixed at ${w}x${h}` : 'canvas fills the window again';
     };
     window['PREVIEW'] = (v)=> placeView = v; // harness: landing-preview cam on/off
     window['NICE'] = ()=> niceShot = 1; // harness: rainbow trail screenshot

@@ -305,7 +305,7 @@ function buildWorld()
     // heading is scattered per hole with sin() of the index - no rand()
     // draw, since genHole's stream must not move. Both stay in frame from
     // the tee, which is what the flare needs.
-    glLightDir = skyDir(SUN_A = Math.sin(hole.index*2.4+1),
+    glLightDir = skyDir(SUN_A = DEV_THUMBNAIL ? -1 : Math.sin(hole.index*2.4+1),
         SUN_E = lerp(.75, .2, hole.index/17));
     if (debug && DEV_THUMBNAIL) // debug-gated or the 1 FOLDS INTO RELEASE
         SUN_E = .5;
@@ -851,6 +851,8 @@ function pushSkyGL()
     // the arms meet. KNOBS: the angular length (1), the thinness (.05), the
     // .2 alpha, and the count/spacing in the loop.
     for (let i=6; i--;)
+    DEV_THUMBNAIL ? 
+        pushSkyDisc(sun, 2, sunCol.scale(1, .4), .03, i*Math.PI/6) :
         pushSkyDisc(sun, 1, sunCol.scale(1, .2), .05, i*Math.PI/6);
     // sun: soft disc + wide faint halo
     pushSkyDisc(sun, .1, sunCol);
@@ -860,7 +862,7 @@ function pushSkyGL()
     // clouds: rows of overlapping soft puffs parked at headings, drifting
     for (let i=7; i--;)
     for (let j=5+i%3; j--;)
-        pushSkyDisc(skyDir(i + time*.02 + j*.1, .3 + (i%3)*.2 + Math.sin(j*j+i+time*.02)*.05),
+        pushSkyDisc(skyDir(i + time*.02 + j*.1, .3 + (i%3)*.3 + Math.sin(j*j+i+time*.02)*.05),
             .2 + Math.sin(j**3)*.05, rgb(1, 1, 1, .7), .5);
     glEnableFog = 1;
 }
@@ -875,7 +877,7 @@ function pushFlareGL()
     const sun = skyDir(SUN_A, SUN_E), cp = Math.cos(camPitch);
     const fwd = vec3(Math.sin(camYaw)*cp, -Math.sin(camPitch), Math.cos(camYaw)*cp);
     const k = clamp((fwd.x*sun.x + fwd.y*sun.y + fwd.z*sun.z - .5));
-    if (!k) return;
+    if (!k || DEV_THUMBNAIL) return;
 
     glEnableFog = 0;
     for(let i=9; i--;)
@@ -932,6 +934,7 @@ function renderViewGL()
     glContext.depthMask(0);
     pushSkyGL();
     pushTrailGL();
+    if (!DEV_THUMBNAIL)
     if (state == ST_AIM || state == ST_SWING)
         pushPredGL();
     glRender();

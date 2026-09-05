@@ -168,7 +168,7 @@ function enterAim()
         camFrom = [camX, camY, camZ, camYaw, camPitch], camEase = 0;
     hideTrees();    // once per shot, so rotating the aim stays smooth
     // pin out on the green only: a chip from sand or rough wants it to rattle off
-    pinOut = ballToPin() < 15 && ballGround().s == SURF_GREEN;
+    pinOut = !DEV_THUMBNAIL && ballToPin() < 15 && ballGround().s == SURF_GREEN;
     meterPhase = 0; // Escape mid-sweep otherwise leaves a stale power mark
     spinMode = 0;   // spin is per shot, not a setting to be left switched on
     clubI = autoClub();
