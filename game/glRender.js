@@ -515,12 +515,13 @@ function pushLathe(pos, profile, sides, color, rot=0, roll=0)
 function pushTreeGL(t)
 {
     const gh = meshHeightAt(t.x, t.z), pal = hole.pal, s = t.s;
+    const c = hashN(t.x, t.z), l = hashN(t.z, t.x);
     // pal.flower plus a small jitter, so a meadow reads as one species with
     // variation (per-flower hues read as confetti). t.c is spent on that
     // jitter, so the second-species roll takes an uncorrelated slice (*7.3 %1).
     const leaf = t.k == 3 ? 
-        hsl(hole.index*.37 + (t.c*7.3 % 1 > SECOND_MIX && .2), 1, t.l/2+.5)
-        : hslCol(pal.tree, t.l*20, t.c*40);
+        hsl(hole.index*.37 + (c*7.3 % 1 > SECOND_MIX && .2), 1, l/2+.5)
+        : hslCol(pal.tree, l*20, c*40);
     // A BUSH IS JUST A LOW TREE with no trunk - same canopy, same collision
     // sphere, one code path. TRUNK_H is the canopy centre and the only thing
     // that differs; course.js bakes the same number into t.y.
@@ -547,8 +548,8 @@ function pushTreeGL(t)
     // into the vertex here.
     leaf.a = .92 + hole.wind.s/8*.07;
     if (t.k < 2) // box trunk (a stretched square prism)
-        pushLathe(vec3(t.x, gh, t.z), [[s*.3, 0], [s*.22, th]], 4, hslCol(pal.trunk, t.l*1e3%20), rot);
-    pushLathe(vec3(t.x, gh + th, t.z), [[0,-s*1.9],[s*1.7,0],[0,s*1.9]], 4, leaf, rot);
+        pushLathe(vec3(t.x, gh-1, t.z), [[s*.3, 0], [s*.2, th]], 4, hslCol(pal.trunk, l*1e4%20), rot);
+    pushLathe(vec3(t.x, gh + th, t.z), [[0,-s*1.6],[s*1.6,0],[0,s*1.6]], 4, leaf, rot);
     if (t.k) return; // far tree / bush: one canopy is enough
     // the two side clumps ORBIT the trunk on its heading, each spinning on
     // its own multiple of it, and take HEIGHT and size off the same heading
@@ -862,8 +863,8 @@ function pushSkyGL()
     // clouds: rows of overlapping soft puffs parked at headings, drifting
     for (let i=7; i--;)
     for (let j=5+i%3; j--;)
-        pushSkyDisc(skyDir(i + time*.02 + j*.1, .3 + (i%3)*.3 + Math.sin(j*j+i+time*.02)*.05),
-            .2 + Math.sin(j**3)*.05, rgb(1, 1, 1, .7), .5);
+        pushSkyDisc(skyDir(i + (hole.wind.s*.005+.01)*time + j*.1, .3 + (i%3)*.3 + Math.sin(j*j+i+(hole.wind.s*.005+.01)*time)*.05),
+            .2 + Math.sin(j**3)*.05, rgb(1, 1, 1, .4+Math.sin(i+j+time*.1)/4), .5);
     glEnableFog = 1;
 }
 

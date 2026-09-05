@@ -74,9 +74,11 @@ eq(genCourse(7, 1).map(r => CLASSIC_HOLES.indexOf(r)).join()
     != genCourse(99, 1).map(r => CLASSIC_HOLES.indexOf(r)).join(), true,
     'different seeds deal different orders');
 eq(genCourse(7, 0), CLASSIC_HOLES, 'classic is the untouched table itself');
-// water 1 IS the island rule now: classic deals one island per par
+// water 1 IS the island rule: one island per par (3, 8, 12), plus 17, the
+// narrow par 4 that sets up the closer - a green across the water rather
+// than a true island, reachable round the side
 eq(CLASSIC_HOLES.map((r, i)=> r[5] == 1 ? i+1 : 0).filter(h => h).join(),
-    '3,8,12', 'classic keeps its island greens on holes 3, 8 and 12');
+    '3,8,12,17', 'classic keeps its island greens on holes 3, 8, 12 and 17');
 
 // ---- forests and bushes ----
 forestMul = 1;
@@ -312,9 +314,9 @@ eq(Math.hypot(pTree.x, pTree.z) > 100, true, 'and it flies straight past: the ri
 // the R stream changed the order of its draws. ----
 genHole(1113, 0, [4, .85, 34, 0, 1, 0, .5, .3]);
 eq(hole.bunkers[0].x.toFixed(3) + ',' + hole.bunkers[0].z.toFixed(3), '-21.019,335.660', 'the draw order still puts bunker 0 where it always was');
-eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '-33.220,348.738', 'and tree 5 where it always was');
+eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '-36.348,181.430', 'and tree 5 where it always was');
 genHole(1113, 12, [4, 1.05, 22, 1, 3, .3, 1.2, 1]);
-eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '-44.089,50.286', 'a dogleg hole with water and hills too');
+eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '46.672,232.049', 'a dogleg hole with water and hills too');
 
 // pathPointAt itself: a prop fingerprint is a sample, not a contract (a
 // wrong segment can still leave trees[5] where it was), so pin the contract

@@ -77,7 +77,7 @@ function gameRenderPost()
             // what makes a LEVEL round print: bests are strings, so '0'
             // passes the truth test below, and a bare 0 would not.
             const best = CONTINUE_SCORE && !i
-                ? savedGame && scoreTotal() - parTotal(holeIndex) + ''
+                ? savedGame && overPar(holeIndex) + ''
                 : i && localStorage[i > 1 ? 'sg_best_r' : 'sg_best_c'];
             // REMIX greys out until classic is beaten at par or better.
             // CONTINUE lights up for a save OR a finished round, since it
@@ -108,7 +108,7 @@ function gameRenderPost()
         // meter are one ahead of it and the flight is not
         txt(`${ballToPin()|0}yd TO PIN`, 18, pad+T*.05, T*.03, 'left');
         txt(`SHOT ${strokes + (state < ST_FLIGHT)}`, 18, pad+T*.095, T*.03, 'left');
-        txt(`SCORE ${relPar(scoreTotal() - parTotal(holeIndex))}`, W-18, pad, T*.04, 'right');
+        txt(`SCORE ${relPar(overPar(holeIndex))}`, W-18, pad, T*.04, 'right');
         // 2.86 mph per wind unit is the real conversion: a unit is WIND_V =
         // 1.4 yd/s of air and a yard per second is 2.0455mph. The exact 2.864
         // prints the same integer at every wind after the |0.
@@ -416,7 +416,7 @@ function renderScorecard()
     }
     const n = over ? 18 : holeIndex+1;
     // no click prompt: any click continues, and on 18 it ends the round
-    txt(`${over ? 'TOTAL' : 'THRU '+n}   ${relPar(scoreTotal() - parTotal(n))}`, W/2, T*.9, T*.05);
+    txt(`${over ? 'TOTAL' : 'THRU '+n}   ${relPar(overPar(n))}`, W/2, T*.9, T*.05);
     if (debug && remixMode)
         txt(`REMIX SEED ${courseSeed}`, W/2, T*.8, T*.03);
 }

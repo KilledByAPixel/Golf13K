@@ -438,12 +438,12 @@ function devUpdate()
         // stick up/down = analog distance; no sound, a tick a frame is a buzz
         const sy = gamepadStick(0).y;
         if (sy)
-            setTarget(shotTarget + sy*.5);
+            setTarget(shotTarget + sy*.25);
         // X = spin, which the release only offers on the chip
         if (gamepadWasPressed(2))
             clubI == CLUB_PUTTER || cycleSpin(); // still no spin on a putt
         // ANALOG TURN, no turnHold ramp: a stick already gives magnitude
-        aimYaw += padTurn()*.005;
+        aimYaw += padTurn()*.002;
         const dc = padClub();
         if (dc)
         {
@@ -516,6 +516,9 @@ function devUpdate()
 
 function devInit()
 {
+    // engine settings
+    gamepadDirectionEmulateStick = false;
+
     // pick the telemetry log back up (see tlog). Here, not at the declaration,
     // so it stays behind `debug`: Closure cannot fold a file-scope side effect
     try { telem = JSON.parse(localStorage['sg_telem']) || []; } catch {}

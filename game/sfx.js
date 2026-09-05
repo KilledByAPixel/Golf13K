@@ -105,7 +105,7 @@ class Sfx
     playNote(semitones, volume) { this.play(volume, 2**(semitones/12), 0); }
 }
 
-const snd_tee     = new Sfx([,.1,400,.04,,.2,,,3,9,,,,2,,,,.3,.06]);       // driver thump
+const snd_tee     = new Sfx([,.1,440,.05,,.2,,,,30,,,,2,,,,.3,.03]);       // driver thump
 const snd_putt    = new Sfx([,,1e3,.02,,,,,3,99,,,,3,,,,.4,.01]);      // soft tap
 const snd_bounce  = new Sfx([.4,,0,.01,,.01,,,,1e4,,,,9]);    // turf blip
 const snd_sand    = new Sfx([.4,,90,.1,,.4,,,,40,,,,20]);  // sand thud

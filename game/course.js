@@ -44,16 +44,16 @@ const CLASSIC_HOLES =
     // middle: Lake - water arrives, doglegs harden
     [5, .90, 40, -.7, 2, .8, .8, .5],
     [3, .90,  0,   0, 1,  1, .4, .4],   // island par 3
-    [4,1.00, 40,  .5, 4, .5,  0, .3],   // LINKS: not a tree, four bunkers, the wind is the hole
+    [4,1.00, 36,  -1.5, 3, .8,  0, .3],   // LINKS: not a tree, 3 bunkers, the wind is the hole
     [4, .95, 36, -.9, 3, .5,  1, .7],   // the river
     [5,1.00, 36,   2, 2, .7,  1, .6],   // S par 5
     [4, .58, 30,   0, 1,  1, .8, .6],   // DRIVABLE island par 4, 238yd: driver over the lake, or lay up and wedge
     // back: Cliffs - narrow, hilly, mean
     [4,1.05, 30,   .5, 3, .3,1.2,1.1],  // the tree in the fairway
-    [4,1.10, 26,   -1, 0,  .6,1.2,1.3],  // the HILLS are the hazard: no sand, some water
-    [5,1.05, 30,  2.2, 1, .5,1.0,  1],  // hairpin par 5 (see dogleg note)
+    [4,1.10, 28,   -1, 0,  .6,1.2,1.3],  // the HILLS are the hazard: no sand, some water
+    [5,1.05, 30,  2.2, 2, .5,1.0,  1],  // hairpin par 5 (see dogleg note)
     [3,1.10,  0,   0,  4, .5, .5,  1],  // bunkered par 3 over broken ground
-    [4,1.20, 22,   1,  4, .6,1.3,1.2],  // NARROWEST fairway on the course
+    [4,1.20, 24,   1,  2, 1,1.3,1.2],  // NARROWEST fairway on the course
     [5,1.10, 28,   2,  2, .9,1.4,1.1],
 ];
 
@@ -63,6 +63,7 @@ let noiseSeed;  // terrain noise seed for current hole
 let lastAlong;  // distance along path from last distToPath call (for stripes)
 let lastDist;   // and the distance to it (periphery shading)
 let lastWater;  // the lake surfaceAt last returned SURF_WATER for
+const greenBump = .5, GREEN_FLAT = .5;
 
 ///////////////////////////////////////////////////////////////////////////////
 // seeded value noise
@@ -138,16 +139,29 @@ function heightAt(x, z)
     const far = clamp((distToPath(x, z) - 110)/250);
     h += far*far*(18 + 50*noise2(x*.004+3, z*.004));
     // shores: terrain eases down to meet each lake (balls roll toward hazards)
+    const waterOffset = 1;
     for (const w of hole.waters)
     {
         const nd = ellipseDist(x, z, w);
-        if (nd < 1.5)
-            h = lerp(h, w.h+.3, smoothStep(clamp((1.5-nd)/.5)));
+        if (nd < 2)
+            h = lerp(h, w.h+waterOffset, smoothStep(2-nd));
     }
     // green plateau
     const dg = Math.hypot(x-hole.green.x, z-hole.green.z);
-    const k = smoothStep(clamp(1 - dg/(hole.gr*2.4)));
-    h = lerp(h, hole.greenH, k) + k*.7;
+    // GREEN_FLAT is how much of the natural relief the green gives up: 0 is
+    // raw terrain and unputtable on the hilly holes, 1 is the dead-flat pad.
+    // MEASURED, worst green on the course by how much of it a ball can rest on,
+    // and the relief left across a green:
+    //   0    34% of hole 14, and its PIN cannot hold a ball   3.6yd
+    //   .3   48%                                              3.1yd
+    //   .5   73%                                              2.7yd  <- here
+    //   1    68%, every green a pad                           2.0yd
+    // Half keeps MORE contour than the old flat pad did and still lets a putt
+    // stop. The blend spans gr*2.4, not gr: at gr it is only full at the green's
+    // exact centre, so the rest of the surface takes the raw hill.
+    const k = smoothStep(1 - dg/(hole.gr*2.4));
+    //h = h + (hole.greenH-h) * k;
+    h = lerp(h, hole.greenH, k*GREEN_FLAT) + k*greenBump;
     // THE BANK. surfaceAt cuts the green off at gr while the plateau above
     // reaches 2.4x that, so at a green with a lake at its rim the ground
     // stands yards over the water and then drops vertically. That cliff is in
@@ -166,18 +180,18 @@ function heightAt(x, z)
         {
             const nd = ellipseDist(x, z, w);
             if (nd < 1.5)
-                h = lerp(h, w.h+.3, smoothStep(clamp((1.5-nd)/.5))
-                    * smoothStep(clamp((dg - hole.gr)/3 + 1)));
+                h = lerp(h, w.h+waterOffset, smoothStep((1.5-nd)/.5)
+                    * smoothStep((dg - hole.gr)/3 + 1));
         }
     // tee pad (the tee is the origin)
-    const kt = smoothStep(clamp(1 - Math.hypot(x, z)/14));
+    const kt = smoothStep(1 - Math.hypot(x, z)/14);
     h = lerp(h, hole.teeH, kt);
     // bunkers scoop a ramped bowl. It must live HERE: slopeAt reads heightAt
     // and nothing else, so a scoop in groundAt is a cliff at the ellipse edge
     // with no gradient. The GREEN OUT-RANKS THE SAND, as in surfaceAt - k is
     // the plateau blend above, so (1-k) fades the scoop out under it.
     for (const b of hole.bunkers)
-        h -= .5*(1-k)*smoothStep(clamp((1 - ellipseDist(x, z, b))/.3));
+        h -= 2*(1-k)*smoothStep((1 - ellipseDist(x, z, b)));
     return h;
 }
 
@@ -283,7 +297,7 @@ function genHole(courseSeed, index, row)
     // whatever its range, so this cannot re-roll a layout.
     hole.gr = R.float(12, 20) - hills + (waterC == 1)*3;
     hole.green = end;
-    hole.greenH = heightRaw(end.x, end.z) + .5;
+    hole.greenH = heightRaw(end.x, end.z) + greenBump;
     hole.teeH = heightRaw(0, 0) + .3;
     const pa = R.float(1e3);
     const pd = R.float(0, hole.gr*.5);
@@ -306,7 +320,8 @@ function genHole(courseSeed, index, row)
     hole.wind = {a: rand(PI*2), s: 1 + rand()**2*MAXWIND};
 
     // bunkers: randomly placed sand
-    for (let i=bunkerN, bunkerSide = R.sign(); i--;)
+    let side = R.sign();
+    for (let i=bunkerN; i--;)
     {
         const a = R.float(1e3);
         const d = hole.gr + R.float(2, 7);
@@ -316,9 +331,9 @@ function genHole(courseSeed, index, row)
         else
         {
             // fairway bunker at a landing zone
-            bunkerSide *= -1;
+            side *= -1;
             const p = pathPointAt(len*R.float(.4, .9));
-            hole.bunkers.push({x: p.x + bunkerSide*(fw/2 + R.float(-2,4)), z: p.z,
+            hole.bunkers.push({x: p.x + side*(fw/2 + R.float(-2,4)), z: p.z,
                             rx:R.float(6,18), rz:R.float(6,18)});
         }
     }
@@ -349,7 +364,6 @@ function genHole(courseSeed, index, row)
     else if (R.bool(waterC))
     {
         const n = 1+R.bool(.3);
-        let side = R.sign();
         for (let i=n; i--;)
         {
             const p = pathPointAt(len*R.float(.4, 1));
@@ -359,11 +373,11 @@ function genHole(courseSeed, index, row)
         }
     }
     for (const w of hole.waters)
-        w.h = Math.min(heightRaw(w.x, w.z), hole.greenH-2) - 1;
+        w.h = Math.min(heightRaw(w.x, w.z), hole.greenH)-2;
 
     // trees {x, z, s: size, c: colour jitter, k: kind} - k 0 = full tree,
     // 1 = far tree (one canopy), 2 = bush, 3 = wildflower; ODD kinds are scenery
-    const addTree = (x, z, s, k)=> hole.trees.push({x, z, s, c: R.float(), l: R.float(), k});
+    const addTree = (x, z, s, k)=> hole.trees.push({x, z, s, k});
 
     // framing trees: scattered outside the fairway along the hole
     const treeCount = Math.min(400, treeDen*len*.6 | 0);

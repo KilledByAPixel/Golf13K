@@ -95,8 +95,17 @@ const resetTarget = ()=> setTarget(clubI == CLUB_PUTTER ? ballToPin()*PUTT_OVER
 // meter fraction -> launchBall power, so a full meter delivers exactly shotTarget
 const shotPower = (mp)=> Math.min(1, mp*shotTarget/targetMax());
 
-const parTotal = (n)=> courseRows.slice(0, n).reduce((t, row)=> t + row[0], 0);
-const scoreTotal = ()=> scores.reduce((a, b)=> a+b, 0);
+// Strokes against the par of the holes played. This difference is the ONLY
+// way either total was ever wanted, so they are one walk rather than two
+// reduces over two arrays. n is scores.length at every call: holeIndex during
+// a round, holeIndex+1 on a hole-out card, 18 at the end.
+const overPar = (n)=>
+{
+    let t = 0;
+    for (let i = n; i--;)
+        t += scores[i] - courseRows[i][0];
+    return t;
+};
 // score against par in golf's own shorthand: E for level, else signed
 const relPar = (d)=> d ? (d>0?'+':'')+d : 'E';
 
@@ -201,6 +210,13 @@ function endHole()
     // ONE sound: the fanfare REPLACES the cup rattle under par, so which one
     // you hear is itself the result. (Also fires on a max-strokes pickup.)
     (strokes < hole.par ? snd_fanfare : snd_hole).play();
+    // THE CARD IS A SAVE POINT. The save is written from enterAim, so without
+    // this it still names the hole just finished and carries the ball in the
+    // cup - Escape or a reload from here replayed the hole and lost its score.
+    // The score is already pushed, so scores.length is now one PAST holeIndex,
+    // which is what continueGame reads to know the hole is done. NOT on 18:
+    // that would name a 19th hole, and nextHole clears the save there anyway.
+    holeIndex < 17 && saveGame();
     setState(ST_HOLEOUT);
 }
 
@@ -208,11 +224,11 @@ function nextHole()
 {
     if (++holeIndex >= 18)
     {
-        debug && autoPlay && console.log(`RESULT total ${scoreTotal()} par ${parTotal(18)}`);
+        debug && autoPlay && console.log(`RESULT total ${relPar(overPar(18))}`);
         // Stored OVER OR UNDER PAR, not as a stroke total: a remix course
         // need not share the classic 18's par, so totals are not comparable.
         const key = (remixMode ? 'sg_best_r' : 'sg_best_c');
-        const rel = scoreTotal() - parTotal(18);
+        const rel = overPar(18);
         const best = localStorage[key];
         if (!best || rel < best)
             localStorage[key] = rel;
@@ -257,18 +273,24 @@ function continueGame()
     const s = savedGame.split(',').map(Number);
     courseSeed = s[0];
     remixMode = courseSeed != CLASSIC_SEED;
-    holeIndex = s[1];
     scores = s.slice(7);
+    // THE CARD SAYS WHICH HOLE, not the stored field: one score per hole
+    // played, so a save taken mid-hole has scores.length == its hole, and one
+    // taken at the card has scores.length one PAST it - the next hole, teed.
+    holeIndex = scores.length;
     courseRows = genCourse(courseSeed, remixMode);
     startHole({a: s[2], s: s[3]});
-    // startHole tees the ball and zeroes the card, so the shot in progress is
-    // put back AFTER it. y is not stored - the terrain is the same terrain.
-    ball.x = s[4];
-    ball.z = s[5];
-    ball.y = ballGround().h;
-    strokes = s[6];
-    // MID-HOLE skips the flyback - it ends at the tee, where the ball is not
-    strokes && enterAim();
+    // startHole tees the ball and zeroes the card, so a shot IN PROGRESS is
+    // put back after it. y is not stored - the terrain is the same terrain.
+    if (s[1] == holeIndex)
+    {
+        ball.x = s[4];
+        ball.z = s[5];
+        ball.y = ballGround().h;
+        strokes = s[6];
+        // MID-HOLE skips the flyback - it ends at the tee, where the ball is not
+        strokes && enterAim();
+    }
 }
 
 // The round is over but its card still recoverable: nextHole leaves holeIndex
@@ -462,7 +484,7 @@ function updateSwing()
                : snd_tee.play(.4 + meterPower*.6, .8 + meterPower*.4);
         // THE VERDICT rides on the SECOND click: the three names are launchBall's
         // three bands - err snapped to exactly 0 (so `!err` needs no abs), under
-        // .06, the rest. Power earns nothing, or PERFECT is unreachable on a
+        // .04, the rest. Power earns nothing, or PERFECT is unreachable on a
         // layup. A PUTT IS JUDGED SILENTLY: hook and slice are flight words and a
         // fanfare over a tap-in shouts about nothing (niceShot stays 0: plain trail).
         if (!isPutt)
@@ -472,7 +494,7 @@ function updateSwing()
                 niceShot = 1;
                 snd_nice.play();
             }
-            showMsg(!err ? 'PERFECT!' : Math.abs(err) < .06 ? 'GOOD'
+            showMsg(!err ? 'PERFECT!' : Math.abs(err) < .04 ? 'GOOD'
                 : err > 0 ? 'SLICE!' : 'HOOK!');
         }
         startFlight();
@@ -652,7 +674,7 @@ function gameUpdatePost()
     // camera from frame 0.
     if (state == ST_INTRO && !(debug && (freeCam || mapView)))
     {
-        const e = smoothStep(clamp(stateTime/INTRO_T));
+        const e = smoothStep(stateTime/INTRO_T);
         const a = pathPointAt(hole.len*(1-e) - 20);
         const w = clamp((e-.7)/.3);
         // The descent cap chains from the previous UPDATE's camY, so read it
@@ -696,7 +718,7 @@ function gameUpdatePost()
         // Pitch does: it starts 21 degrees below where setSwingCam left it. The
         // .1 must match setSwingCam; stateTime counts fixed updates, so no extra state.
         camPitch = lerp(.1, Math.atan2(camY - ball.y - 1, Math.max(hd, 8)),
-            smoothStep(clamp((stateTime - CAM_HOLD)/30)));
+            smoothStep((stateTime - CAM_HOLD)/30));
     }
     ++camEase; // fixed step, so the settle ease is frame-rate independent
 

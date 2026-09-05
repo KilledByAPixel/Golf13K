@@ -131,7 +131,7 @@ function lerpAngle(angleA, angleB, percent) { return lerpWrap(angleA, angleB, pe
  *  @param {number} percent
  *  @return {number}
  *  @memberof Math */
-function smoothStep(percent) { return percent * percent * (3 - 2 * percent); }
+function smoothStep(percent) { percent = clamp(percent); return percent ** 2 * (3 - 2 * percent); }
 
 /** Checks if the value passed in is a power of two
  *  @param {number} value
