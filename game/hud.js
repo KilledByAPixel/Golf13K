@@ -277,10 +277,10 @@ const panel = (x, y, w, h, r)=>
     const c = overlayContext;
     c.fillStyle = '#000a';
     c.beginPath();
-    if (c['roundRect'])
+    //if (c['roundRect'])
         c['roundRect'](x, y, w, h, r);
-    else
-        c.rect(x, y, w, h);
+    //else
+    //    c.rect(x, y, w, h);
     c.fill();
 }
 
@@ -360,8 +360,8 @@ function rainbowText(t, x, y, size, style=0)
         }
         // clamp to width of canvas
         const scale = Math.min(1, .9*mainCanvasSize.x / w);
-        ctx.strokeStyle = hsl(0, 0, Math.sin(i/3+style-time*2)**8/2);
-        ctx.fillStyle = hsl(style/2+i/9+time/5, 1, .6);
+        ctx.strokeStyle = hsl(0, 0, Math.sin(i/4+style-time*2)**8/2);
+        ctx.fillStyle = hsl(style/2+i/9+time/5, 1-style, style? .7+Math.sin(i/4+style-time*2)**8*.3 : .6);
         ctx.strokeText(c, px-w/2*scale, y, cw, w*scale);
         ctx.fillText(c, px-w/2*scale, y, w*scale);
         px += cw*scale;
