@@ -346,6 +346,14 @@ function devUpdate()
         holeIndex = (holeIndex + 18 + skip)%18;
         startHole();
         puttMode && puttDrop(); // stay on the greens while hopping holes
+        // LEAVE A SAVE, so a reload comes back to the hole you hopped to.
+        // continueGame reads the hole from how many cards are in, not from the
+        // stored field, so the card has to be filled to match - par for any
+        // hole skipped over, and trimmed when hopping backwards.
+        while (scores.length < holeIndex)
+            scores.push(courseRows[scores.length][0]);
+        scores.length = holeIndex;
+        saveGame();
     }
     if (cheatsOn && keyWasPressed('KeyF'))
     {

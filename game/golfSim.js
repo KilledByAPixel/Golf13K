@@ -26,9 +26,15 @@ const PUTT_MAX = 40;
 // How far PAST the cup resetTarget sets the bar's top, as a multiple of the
 // putt. MUST stay above 1: a bar topping out exactly at the cup can only be
 // missed short, since every stroke that is not perfect at the very top falls
-// under it. At 1.2 the cup marker lands around 82% of the bar, which is also
-// what keeps that marker on screen (it is only drawn when it fits).
-const PUTT_OVER = 1.2;
+// under it. It also has to keep the cup marker ON THE BAR, since that is only
+// drawn when it fits - at 1.3 the marker sits at 77% of the bar.
+// A CONTOURED GREEN EATS PACE, so the old 1.2 left too many putts dying short.
+// MEASURED over every green, putts from 3 to 15yd all round the cup:
+//   1.2   88% reach the hole, 17% run more than 3yd past
+//   1.3   94%                 22%   <- here
+//   1.4   97%                 28%
+// Halving the putts that cannot go in is worth the longer ones coming back.
+const PUTT_OVER = 1.3;
 // How hard a mis-timed second click PUSHES a putt offline. Its own number
 // because push/pull is an ANGLE: the .05 every other club uses is ten yards
 // of miss on a 200yd drive and two CENTIMETRES on a ten yard putt.

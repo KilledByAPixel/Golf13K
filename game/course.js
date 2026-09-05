@@ -53,7 +53,7 @@ const CLASSIC_HOLES =
     [4,1.10, 28,   -1, 0,  .6,1.2,1.3],  // the HILLS are the hazard: no sand, some water
     [5,1.05, 30,  2.2, 2, .5,1.0,  1],  // hairpin par 5 (see dogleg note)
     [3,1.10,  0,   0,  4, .5, .5,  1],  // bunkered par 3 over broken ground
-    [4,1.20, 24,   1,  2, 1,1.3,1.2],  // NARROWEST fairway on the course
+    [4,1.20, 24,   1,  2, .5,1.3,1.2],  // NARROWEST fairway on the course
     [5,1.10, 28,   2,  2, .9,1.4,1.1],
 ];
 

@@ -74,11 +74,9 @@ eq(genCourse(7, 1).map(r => CLASSIC_HOLES.indexOf(r)).join()
     != genCourse(99, 1).map(r => CLASSIC_HOLES.indexOf(r)).join(), true,
     'different seeds deal different orders');
 eq(genCourse(7, 0), CLASSIC_HOLES, 'classic is the untouched table itself');
-// water 1 IS the island rule: one island per par (3, 8, 12), plus 17, the
-// narrow par 4 that sets up the closer - a green across the water rather
-// than a true island, reachable round the side
+// water 1 IS the island rule: classic deals one island per par
 eq(CLASSIC_HOLES.map((r, i)=> r[5] == 1 ? i+1 : 0).filter(h => h).join(),
-    '3,8,12,17', 'classic keeps its island greens on holes 3, 8, 12 and 17');
+    '3,8,12', 'classic keeps its island greens on holes 3, 8 and 12');
 
 // ---- forests and bushes ----
 forestMul = 1;
