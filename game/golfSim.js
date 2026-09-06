@@ -585,10 +585,18 @@ function ballUpdate()
         let keep = P[1];
         if (bounces == 1)
         {
-            // Bite on the first bounce. One symmetric number: raising it
-            // stops backspin harder AND lets topspin run further, so .7 is
-            // where the three totals sit closest (295/286/294).
-            keep *= 1 + ballSpin*.7;
+            // Bite on the first bounce, and ONE SYMMETRIC NUMBER: raising
+            // it stops backspin harder AND lets topspin run further, so the
+            // two cannot be pulled apart without a second term. No spin never
+            // moves - the spin shots pivot around it. MEASURED run on a flat
+            // calm fairway at full power, back / none / top:
+            //         1W                7i               PW
+            //   .7   6.0/21.5/56.7   5.0/17.6/32.7   4.0/14.4/26.1
+            //   .5  10.1/21.5/48.0   8.3/17.6/28.5   6.8/14.4/23.2   <- here
+            //   .3  14.2/21.5/39.3  11.7/17.6/24.4   9.5/14.4/19.7
+            // Greens keep less than fairway, so an approach holds tighter
+            // than these rows suggest.
+            keep *= 1 + ballSpin*.5;
             if (g.s == SURF_GREEN && ballSpin < 0)
             {
                 // backspin sucks back: 3yd/s of draw against the shot, AFTER

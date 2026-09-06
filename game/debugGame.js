@@ -373,6 +373,9 @@ function devUpdate()
         placeView = !placeView, camEase = SETTLE_T;
         snd_tick.play();
     }
+    // back on gamepad
+    if (padOn() && gamepadWasPressed(8))
+        setState(ST_TITLE);
     // T: AI TEST MODE - the bot plays through the normal game so a round can
     // be WATCHED (same machinery as `?auto=1`: updateAim hands over to
     // botSwing). NOT while the free cam is up, where T is the pitch control.

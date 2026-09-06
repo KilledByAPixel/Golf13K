@@ -4,44 +4,48 @@
 
 ![Cover Image](cover.png)
 
-An 18 hole golf course in real 3D, in under 13 kilobytes! Every hole is built from a seed the moment you tee off. Inspired by classic golf games.
+An 18 hole golf course in real 3D! Every hole is built from a seed the moment you tee off. Inspired by classic golf games.
 
-Shoot par or better on the classic to unlock remix mode, and get a brand new course every time you play.
+Shoot par or better on the classic to unlock remix mode, and get a brand new course every time you play. Your game is auto saved if you want to come back later.
 
-Sunshine is where rainbows and unicorns meet, so I made a game about the sun and the beauty of nature. The rainbows are everywhere once you look for them: the swing meter, the aim ring, the ball trail, the water and the lens flare.
+Sunshine is where rainbows and unicorns meet, so I made a game celebrating the sun and natural beauty. The rainbows are everywhere once you look for them: swing meter, aim ring, ball trail, water, lens flare, and flowers.
 
-Best in Chrome, great on phones too. Created by Frank Force for JS13k 2026
+Created by Frank Force for JS13k 2026
 
 ## 🕹️ Controls
 
-- Click or tap anything on screen. The chips above the meter set club, spin and distance, and the side arrows turn you.
-- Click the view to see where the shot will land.
-- Keyboard: arrows or WASD to aim, up and down to change club, Space to swing. The wheel sets distance.
+Play with mouse or touch devices.
+
+- Use buttons above the meter to set club, spin and distance, and the side arrows turn.
+- Or use the arrow keys: left and right turn, up and down change club.
+- Click the view to toggle placement camera.
+- Mouse wheel sets distance.
+- Click the meter or press space to swing.
 
 ## ⛳ How to Play
 
-1. Aim with the arrows. A faint line draws the shot before you take it and the ring marks where it will land.
-2. Set the distance, then click once to start the meter. Click again to set the power: it bounces off the top, so you get two passes at it.
-3. Click a third time in the white band to strike it clean. Too early is a slice, too late is a hook.
+1. Aim with the arrows. A line draws the shot trajectory and the ring marks where it will land.
+2. Click once on the swing meter to start a swing.
+3. Click again to set the power.
+4. Click a third time to set accuracy. Click in the white band to strike it clean. Too early is a slice, too late is a hook.
 
 Tips...
 
-- The preview never shows the wind, so the arrow and the mph are yours to read.
-- Backspin angles higher and stops fast, topspin angles lower and rolls farther.
-- Aim past the hole on a putt, because short never goes in.
+- The preview trajectory does not take wind into account, so the wind is yours to read.
+- Backspin angles higher and stops faster, topspin angles lower and rolls farther.
+- Greens follow the land they sit on, so read the slope before you putt.
 - Water and out of bounds cost a stroke. At 5 over par you pick up and move on.
 
 ## 🌈 Features
 
-- 18 hole classic course, plus endless remix courses
-- Real 3D terrain with hills, lakes, island greens and forests, drifting from spring meadow to fall sunset as you play
-- Wind you can see: it bends shots, rolls waves and sways trees
-- Real flight physics with drag, lift, backspin and topspin
-- An 11 club bag, starring the mighty 13 iron
-- Flyover hole intros, chase cam and a landing preview
-- Sun rays, lens flare, rainbow trails and confetti
-- Procedural music and ZzFX sound effects
-- Autosaves every shot and tracks your best rounds
+- 18 hole course, plus endless remix courses.
+- WebGL 3d rendering system included.
+- Procedural 3D terrain with hills, lakes, islands, and contoured greens that break your putts.
+- Wind you can see: it bends shots, rolls waves, sways trees and blows clouds.
+- Real flight physics with drag, lift, backspin and topspin.
+- An 11 club bag, starring the mighty 13 iron.
+- Sun rays, lens flare, rainbow trails and confetti.
+- Procedural music and sound effects.
 
 All rights reserved — this code is here to be played and judged, not reused.
 See [LICENSE](LICENSE). The [LittleJS](https://github.com/KilledByAPixel/LittleJS)
