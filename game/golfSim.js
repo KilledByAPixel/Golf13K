@@ -614,9 +614,17 @@ function ballUpdate()
             }
             ballSpin *= .3;
         }
-        ball.vy = -ball.vy*P[0];
-        ball.vx *= keep;
-        ball.vz *= keep;
+        // BOUNCE OFF THE SLOPE, not off a flat plane. Split the velocity
+        // about the ground normal (-gx, 1, -gz): the tangent keeps `keep`,
+        // the normal reverses with the surface's restitution. One expression
+        // does both, since v*keep - n*(v.n/|n|^2)*(keep + P[0]) is exactly
+        // vt*keep - vn*P[0]. On the level gx and gz are 0 and it reduces to
+        // the plain `vy = -vy*P[0]`, so nothing about a flat bounce moves.
+        const [gx, gz] = slopeAt(ball.x, ball.z);
+        const m = (ball.vy - ball.vx*gx - ball.vz*gz)/(gx*gx + 1 + gz*gz)*(keep + P[0]);
+        ball.vx = ball.vx*keep + gx*m;
+        ball.vy = ball.vy*keep - m;
+        ball.vz = ball.vz*keep + gz*m;
         if (ball.vy < 1.6)
         {
             ball.vy = 0;

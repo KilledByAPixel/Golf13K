@@ -18,7 +18,7 @@ let spinMode = 0;                       // the spin chip: -1 back, 0 none, 1 top
 
 // Where the shot is predicted to stop, and the yards to it. ONE simulation
 // feeds every aim aid (predPath line, ring, printed yards), so none disagree.
-let predLand = {x:0, z:0}, predDist = 0;
+let predLand = vec3(), predDist = 0;
 let placeView = 0, turnHold = 0;        // preview cam on?, turn-accel counter
 
 // Frames the camera holds still after a swing before it starts chasing.

@@ -565,7 +565,7 @@ function pushTreeGL(t)
     // x, z, s untouched so collision and the layout are too.
     for(let i=2;i--;)
     {
-        const r = rot + i*rot*1e3;
+        const r = R.float(1e3);
         const dx = Math.sin(r)*t.s*.9, dz = Math.cos(r)*t.s*.9;
         const r1 = t.s*R.float(.7,1);
         pushLathe(vec3(t.x + dx, gh + t.s*3 + dz, t.z + dz), [[0,-r1],[r1,0],[0,r1]], 4, leaf, rot*3);
@@ -870,7 +870,7 @@ function pushSkyGL()
     // clouds: rows of overlapping soft puffs parked at headings, drifting
     for (let i=7; i--;)
     for (let j=5+i%3; j--;)
-        pushSkyDisc(skyDir(i + (hole.wind.s*.005+.01)*time + j*.1, .3 + (i%3)*.3 + Math.sin(j*j+i+(hole.wind.s*.005+.01)*time)*.05),
+        pushSkyDisc(skyDir(i + .02*time + j*.1, .3 + (i%3)*.3 + Math.sin(j*j+i+.02*time)*.05),
             .2 + Math.sin(j**3)*.05, rgb(1, 1, 1, .4+Math.sin(i+j+time*.1)/4), .5);
     glEnableFog = 1;
 }
