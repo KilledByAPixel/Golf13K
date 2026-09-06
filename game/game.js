@@ -78,7 +78,11 @@ let shotTarget;
 // what a lie costs a putt depends on how far it rolls through it, which a
 // scale cannot know, so the prediction rolls it over the real ground instead.
 const targetMax = ()=> clubI == CLUB_PUTTER ? PUTT_MAX : CLUBS[clubI][1]*lieMul();
-const setTarget = (d)=> shotTarget = clamp(d, 5, targetMax());
+// 1yd is the FLOOR, not 5: a tap-in needs a bar it can actually aim with,
+// and PUTT_OVER pushes the target past the cup, so a short one asks for less
+// still. MEASURED, the literal alone: 1 and 3 cost nothing, 2.5 costs 1, and
+// 2 costs 7 - roadroller context, not arithmetic.
+const setTarget = (d)=> shotTarget = clamp(d, 1, targetMax());
 
 // Yards per chip click and per wheel notch. 1 is the floor: the chip prints
 // whole yards, so a finer step buys clicks that leave the number where it was.
@@ -376,7 +380,7 @@ function updateAim()
     const dc = (keyWasPressed('ArrowDown') || keyWasPressed('KeyS')) - (keyWasPressed('ArrowUp') || keyWasPressed('KeyW'));
     if (dc)
     {
-        clubI = clamp(clubI + dc, 0, CLUBS.length-1);
+        clubI = mod(clubI + dc, CLUBS.length);
         resetTarget();
         snd_adjust.play();
     }
@@ -471,6 +475,12 @@ function updateSwing()
     else if (ev == MET_SWING)
     {
         ++strokes;
+        // THE STROKE IS COMMITTED AT THE SWING, not when the ball settles:
+        // ball.x/z are still the lie it was played from, so quitting mid-flight
+        // resumes THERE with the shot already on the card - bailing out of a bad
+        // hit costs stroke and distance instead of being a free mulligan.
+        // enterAim overwrites this with the real result once the ball stops.
+        saveGame();
         niceShot = 0;
         // logged before the launch, from the lie and distance the shot was played from
         debug && tlog('shot', {

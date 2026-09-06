@@ -458,7 +458,7 @@ function devUpdate()
         const dc = padClub();
         if (dc)
         {
-            clubI = clamp(clubI + dc, 0, CLUBS.length-1);
+            clubI = mod(clubI + dc, CLUBS.length);
             resetTarget();
             snd_adjust.play();
         }

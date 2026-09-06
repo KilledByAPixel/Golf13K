@@ -375,7 +375,7 @@ function rainbowText(t, x, y, size, style=0)
         ctx.strokeStyle = DEV_THUMBNAIL ? '#000' : hsl(0, 0, Math.sin(i/4+style-time*2)**8/2);
         ctx.fillStyle = DEV_THUMBNAIL ? 
         hsl(style/2+i/9, 1-style, style?.7:.6) :
-        hsl(style/2+i/9+time/5, 1-style, style? .9+Math.sin(i/4+style-time*2)**8*.1 : .7);
+        hsl(style/2+i/9-time/5, 1-style, style? .8+Math.sin(i/4+style-time*2)**8*.2 : .7);
         ctx.strokeText(c, px-w/2*scale, y, cw, w*scale);
         ctx.fillText(c, px-w/2*scale, y, w*scale);
         px += cw*scale;
