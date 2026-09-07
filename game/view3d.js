@@ -16,7 +16,7 @@ const FOCAL = .525;
 function project(x, y, z)
 {
     const p = glViewProj.transformPoint({x, y, z});
-    return {x: (1 + p.x/p.w)*mainCanvasSize.x/2, y: (1 - p.y/p.w)*mainCanvasSize.y/2, z: p.w};
+    return {x: (1 + p.x/p.w)*mainCanvasSize.x*.5, y: (1 - p.y/p.w)*mainCanvasSize.y*.5, z: p.w};
 }
 
 // THE PUTT ZOOM. camZoom(k) is k with the putter in hand and 1 otherwise, so
@@ -82,9 +82,9 @@ function setMapCam()
     }
     const w = x1 - x0 + 180, l = z1 - z0 + 120;
     camYaw = 0;
-    camPitch = Math.PI/2;
-    camX = (x0 + x1)/2;
-    camZ = (z0 + z1)/2;
+    camPitch = Math.PI*.5;
+    camX = (x0 + x1)*.5;
+    camZ = (z0 + z1)*.5;
     camY = hole.greenH + 1.1*FOCAL*Math.max(l, w*mainCanvasSize.y/mainCanvasSize.x);
 }
 

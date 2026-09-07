@@ -13,6 +13,7 @@
     purely from where it lands in the concatenated source. */
 
 const GOLD = '#fd4';
+const pinColor = '#f35';
 const FONT = 'impact';
 //const FONT = 'none';
 
@@ -48,7 +49,7 @@ function gameRenderPost()
     // both) - set per frame because the re-size above resets the context
     overlayContext.lineJoin = overlayContext.lineCap = 'round';
     overlayContext.textBaseline = 'middle';
-    const midX = W/2;
+    const midX = W*.5;
 
     // debugGame.js: the mode banners. Returns 1 when the map or the free
     // cam owns the frame and no game HUD should draw over it.
@@ -70,7 +71,7 @@ function gameRenderPost()
         if (!DEV_THUMBNAIL)
         for (let i=3; i--;)
         {
-            const r = menuRect(i), cx = r.x + r.w/2;
+            const r = menuRect(i), cx = r.x + r.w*.5;
             // Under each button: CLASSIC and REMIX show their BEST, CONTINUE
             // the round IN PROGRESS - gameInit loads the save's card, so the
             // game's own score functions already have it. The trailing '' is
@@ -84,8 +85,8 @@ function gameRenderPost()
             // re-opens the final scorecard - the only way back to it.
             const col = (i ? i > 1 ? localStorage['sg_best_c'] <= 0 : 1 : savedGame || roundOver()) ? WHITE : '#444';
             // .24 is set by CONTINUE, the longest label, so all three match
-            const fs = Math.min(r.h/2, r.w*.24);
-            panel(r.x, r.y, r.w, r.h, r.h*.3);
+            const fs = Math.min(r.h*.5, r.w*.24);
+            fillRect(r.x+r.w*.5, r.y+r.h*.5, r.w, r.h, '#000a', 0, r.h*.3);
             txt(MENU[i], cx, r.y + r.h*.36, fs, 'center', col, r.w);
             if (best) txt(relPar(+best), cx, r.y + r.h*.8, fs*.8, 'center', col);
         }
@@ -103,7 +104,7 @@ function gameRenderPost()
     else
     {
         const pad = T*.05; // breathing room off the screen top
-        txt(`HOLE ${holeIndex+1}  PAR ${hole.par}`, 18, pad, T*.04, 'left', WHITE, W/2);
+        txt(`HOLE ${holeIndex+1}  PAR ${hole.par}`, 18, pad, T*.04, 'left', WHITE, W*.5);
         // the shot IN PLAY: strokes increments at impact, so aim and the
         // meter are one ahead of it and the flight is not
         txt(`${ballToPin()|0}yd TO PIN`, 18, pad+T*.05, T*.03, 'left');
@@ -120,7 +121,7 @@ function gameRenderPost()
             hsl(.3 - hole.wind.s/25, 1, Math.max(.5, 1-hole.wind.s/20)), .4);
     }
 
-    if (state == ST_AIM || state == ST_SWING)
+    if (state == ST_AIM || state == ST_SWING || state == ST_FLIGHT && stateTime < 60)
     {
         // floating pin marker, hidden inside 30yd where the flag reads on
         // its own. Behind the camera (z <= 0) it parks on the nearer side.
@@ -133,20 +134,20 @@ function gameRenderPost()
             const my = front ? clamp(pp.y, T*.3, T*.7) : T*.3;
             // hovers above the flag top so the real flag stays visible under it
             const bob = Math.sin(time*3)*T*.006;
-            txt('⚑', mx, my - T*.04 + bob, T*.04, 'center', '#f35');
-            //tri(mx, my + bob-T*.05, T*.01, PI, '#f35', 2, T*.001);
+            txt('⚑', mx, my - T*.04 + bob, T*.04, 'center', pinColor);
+            //tri(mx, my + bob-T*.05, T*.01, Math.PI, '#f35', 2, T*.001);
             txt(`${dPin|0}`, mx, my - T*.08 + bob, T*.03);
         }
 
         // lie label (no control instructions: the chips explain themselves)
-        txt(SURF_NAMES[ballGround().s], midX, T*.96, T*.06);
+        txt(predLieLabel, midX, T*.96, T*.06);
 
         if (state == ST_AIM)
         {
             // the clickable turn arrows, at the screen sides.
             // KNOB: T*.045 is their size; tri fixes the outline weight.
-            tri(arrowX(), T*.5, T*.04, -PI/2, rgb(1,1,1,.8 + Math.sin(time*4)*.2));
-            tri(W-arrowX(), T*.5, T*.04, PI/2, rgb(1,1,1,.8 + Math.sin(time*4)*.2));
+            tri(arrowX(), T*.5, T*.04, -Math.PI*.5, rgb(1,1,1,.8 + Math.sin(time*4)*.2));
+            tri(W-arrowX(), T*.5, T*.04, Math.PI*.5, rgb(1,1,1,.8 + Math.sin(time*4)*.2));
         }
         renderMeter();
     }
@@ -207,7 +208,7 @@ function renderMeter()
     const isPutt = clubI == CLUB_PUTTER;
     const armed = state == ST_AIM; // visible before the swing starts
 
-    panel(bx-bh*.3, by-bh*.3, bw+bh*.6, bh*1.6, bh*.5);
+    fillRect(bx + bw*.5, by + bh*.5, bw+bh*.6, bh*1.6, '#000a', 0, bh*.5);
 
     // power track: green -> yellow -> red toward the full-power target
     // (raw context: the engine has no gradient fills)
@@ -234,27 +235,36 @@ function renderMeter()
     // same claim.
 
     // WHERE THE CUP FALLS on the bar
-    if (ballToPin() < predDist)
+    if (predPinDist < predDist)
     {
-        fillRect(t2x(ballToPin()/predDist)-3, by-bh*.5, 6, bh*2, '#8ef');
+        fillRect(t2x(predPinDist/predDist), by+bh*.5, 6, bh*1.6, pinColor);
+        txt('⚑', t2x(predPinDist/predDist), by-bh*.5, bh, 'center', pinColor);
     }
     // the sweet spot, on every club: launchBall snaps err to zero inside
     // |impact| < .02. The .06 that prints GOOD is not drawn - nothing happens there.
-    fillRect(t2x(-.02), by-bh*.3, .04*xs, bh*1.6, '#fffa');
+    fillRect(t2x(0), by+bh*.5, .04*xs, bh*1.6, '#fffa');
 
     // caption above the bar, clear of the cursor's pointer triangle
     const cap = 'CLICK TO SWING!';
-    armed && txt(cap, W/2, by+bh/2, T*.04, 'center', hsl(0, 0, 1, .7+.3*Math.sin(time*4)));
+    armed && txt(cap, W*.5, by+bh*.5, T*.04, 'center', hsl(0, 0, 1, .7+.3*Math.sin(time*4)));
 
     // power mark once chosen
-    if (meterPhase == 2)
-        fillRect(t2x(meterPower)-3, by-bh/2, 6, bh*2, GOLD);
+    if (meterPhase == 2 | state == ST_FLIGHT)
+    {
+        const cx = t2x(meterPower);
+        fillRect(cx, by+bh*.5, 6, bh*1.6, GOLD);
+        ctx.beginPath();
+        ctx.lineTo(cx, by-bh*.3);
+        ctx.lineTo(cx-bh*.4, by-bh);
+        ctx.lineTo(cx+bh*.4, by-bh);
+        ctx.fill();
+    }
 
     // cursor: tall marker with a pointer triangle (rests at the line pre-swing)
     const cx = t2x(armed ? 0 : meterPos());
-    fillRect(cx-3, by-bh*.5, 6, bh*2, WHITE);
+    fillRect(cx, by+bh*.5, 6, bh*1.6, WHITE);
     ctx.beginPath();
-    ctx.lineTo(cx, by-bh*.5);
+    ctx.lineTo(cx, by-bh*.3);
     ctx.lineTo(cx-bh*.4, by-bh);
     ctx.lineTo(cx+bh*.4, by-bh);
     ctx.fill();
@@ -265,45 +275,38 @@ function renderMeter()
     {
         const {y, h, w, xs} = meterBtns();
         // font capped by chip width too - phone-portrait chips are narrow
-        const c = CLUBS[clubI], fs = Math.min(h*.7, w*.25), cy = y + h/2;
+        const c = CLUBS[clubI], fs = Math.min(h*.7, w*.25), cy = y + h*.5;
         for (const x of xs)
-            panel(x, y, w, h, h*.3);
+            fillRect(x+w*.5, y+h*.5, w, h, '#000a', 0, h*.3);
         // KNOB: fs/3 sizes the chevrons against the chip's text; their .4
         // outline is matched to that ratio (see tri)
-        tri(xs[0]+w*.1, cy, fs/3, -PI/2, WHITE, 1, .4);
-        tri(xs[0]+w*.9, cy, fs/3, PI/2, WHITE, 1, .4);
-        txt(c[0], xs[0]+w/2, cy, fs);
-        txt(isPutt ? '-' : SPIN_NAMES[spinMode+1], xs[1]+w/2, cy, fs, 'center', !isPutt && spinMode ? GOLD : WHITE);
+        tri(xs[0]+w*.1, cy, fs/3, -Math.PI*.5, WHITE, 1, .4);
+        tri(xs[0]+w*.9, cy, fs/3, Math.PI*.5, WHITE, 1, .4);
+        txt(c[0], xs[0]+w*.5, cy, fs);
+        txt(isPutt ? '-' : SPIN_NAMES[spinMode+1], xs[1]+w*.5, cy, fs, 'center', !isPutt && spinMode ? GOLD : WHITE, w*.9);
         // the - and + show on a putt too: the distance chip drives the putt
         // bar exactly as it drives every other club's
         txt('-', xs[2]+w*.1, cy, fs);
         txt('+', xs[2]+w*.9, cy, fs);
         // the one place the yardage is printed
-        txt(`${predDist|0}yd`, xs[2]+w/2, cy, fs);
+        txt(`${predDist|0}yd`, xs[2]+w*.5, cy, fs);
     }
 }
 
-// Rounded backing panel for the meter, chips and scorecard.
-const panel = (x, y, w, h, r)=>
-{
-    const c = overlayContext;
-    c.fillStyle = '#000a';
-    c.beginPath();
-    //if (c['roundRect'])
-        c['roundRect'](x, y, w, h, r);
-    //else
-    //    c.rect(x, y, w, h);
-    c.fill();
-}
-
-const fillRect = (x, y, w, h, col, a)=>
+const fillRect = (x, y, w, h, col, a, r)=>
 {
     const c = overlayContext;
     c.fillStyle = col;
     c.save();
-    c.translate(x+w/2, y+h/2);
+    c.translate(x, y);
     c.rotate(a);
-    c.fillRect(-w/2, -h/2, w, h);
+    c.beginPath();
+    if (r && c['roundRect'])
+        c['roundRect'](-w*.5, -h*.5, w, h, r);
+    else
+        c.rect(-w*.5, -h*.5, w, h);
+    //c.fillRect(-w*.5, -h*.5, w, h);
+    c.fill();
     c.restore();
 }
 
@@ -342,7 +345,7 @@ function rainbowText(t, x, y, size, style=0)
     //           outline: the **8 turns the sine into a narrow spike, so the
     //           outline is black on most letters and flares on one at a
     //           time. i/3 sets how wide that flare is along the word,
-    //           time*2 how fast it sweeps, /2 how bright it gets.
+    //           time*2 how fast it sweeps, .5 how bright it gets.
     const ctx = overlayContext;
     // the title is sized off the canvas HEIGHT, so on a portrait phone the
     // word would run off the sides: cap it by the width it will need, which
@@ -372,12 +375,12 @@ function rainbowText(t, x, y, size, style=0)
         }
         // clamp to width of canvas
         const scale = Math.min(1, .9*mainCanvasSize.x / w);
-        ctx.strokeStyle = DEV_THUMBNAIL ? '#000' : hsl(0, 0, Math.sin(i/4+style-time*2)**8/2);
+        ctx.strokeStyle = DEV_THUMBNAIL ? '#000' : hsl(0, 0, Math.sin(i/4+style-time*2)**8*.5);
         ctx.fillStyle = DEV_THUMBNAIL ? 
-        hsl(style/2+i/9, 1-style, style?.7:.6) :
-        hsl(style/2+i/9-time/5, 1-style, style? .8+Math.sin(i/4+style-time*2)**8*.2 : .7);
-        ctx.strokeText(c, px-w/2*scale, y, cw, w*scale);
-        ctx.fillText(c, px-w/2*scale, y, w*scale);
+        hsl(style*.5+i/9, 1-style, style?.7:.6) :
+        hsl(style*.5+i/9-time/5, 1-style, style? .8+Math.sin(i/4+style-time*2)**8*.2 : .7);
+        ctx.strokeText(c, px-w*.5*scale, y, cw, w*scale);
+        ctx.fillText(c, px-w*.5*scale, y, w*scale);
         px += cw*scale;
     }
 }
@@ -394,13 +397,13 @@ function renderScorecard()
     const W = mainCanvasSize.x, T = mainCanvasSize.y, over = roundOver();
     // confetti FIRST so the panel sits over it, and never while reviewing
     over || renderConfetti();
-    panel(W*.03, T*.05, W*.94, T*.9, T*.04);
+    fillRect(W*.5, T*.5, W*.94, T*.9, '#000a', 0, T*.04);
     // two lines: "HOLE 3 — 🦄 HOLE IN ONE!" does not fit one line on a phone
     // in portrait, and the long names are the ones you most want to read
-    txt(over ? 'SCORECARD' : `HOLE ${holeIndex+1}`, W/2, T*.1, T*.06);
-    over || txt(scoreName(strokes, hole.par), W/2, T*.18, T*.05);
+    txt(over ? 'SCORECARD' : `HOLE ${holeIndex+1}`, W*.5, T*.1, T*.06);
+    over || txt(scoreName(strokes, hole.par), W*.5, T*.18, T*.05);
     const cw = W*.095; // W*.85/9
-    const x0 = W*.08 + cw/2;
+    const x0 = W*.08 + cw*.5;
     for (let half=2; half--;)
     {
         // .34 centres the two rows in the panel
@@ -416,9 +419,9 @@ function renderScorecard()
     }
     const n = over ? 18 : holeIndex+1;
     // no click prompt: any click continues, and on 18 it ends the round
-    txt(`${over ? 'TOTAL' : 'THRU '+n}   ${relPar(overPar(n))}`, W/2, T*.9, T*.05);
+    txt(`${over ? 'TOTAL' : 'THRU '+n}   ${relPar(overPar(n))}`, W*.5, T*.9, T*.05);
     if (debug && remixMode)
-        txt(`REMIX SEED ${courseSeed}`, W/2, T*.8, T*.03);
+        txt(`REMIX SEED ${courseSeed}`, W*.5, T*.8, T*.03);
 }
 
 function renderConfetti()
@@ -426,7 +429,7 @@ function renderConfetti()
     const W = mainCanvasSize.x, T = mainCanvasSize.y;
     for (let i=99; i--;)
     {
-        const rx = W/2+Math.sin(i)*W/2, rs = 4+Math.sin(i**3);
+        const rx = W*.5+Math.sin(i)*W*.5, rs = 4+Math.sin(i**3);
         const y = ((stateTime*rs + i**4)%(T+40)) - 20;
         fillRect(rx + Math.sin(time+i)*50, y, 6, 9,
             hsl(i**3.1, 1, .6), time*(i%2?1:-1) + i);

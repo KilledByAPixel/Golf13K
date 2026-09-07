@@ -526,8 +526,8 @@ function touchGamepadRender()
     {
         for(let i=10; i--;)
         {
-            const angle = i*PI/4;
-            context.arc(leftCenter.x, leftCenter.y,touchGamepadSize*.6, angle + PI/8, angle + PI/8);
+            const angle = i*Math.PI/4;
+            context.arc(leftCenter.x, leftCenter.y,touchGamepadSize*.6, angle + Math.PI/8, angle + Math.PI/8);
             i%2 && context.arc(leftCenter.x, leftCenter.y, touchGamepadSize*.33, angle, angle);
             i==1 && context.fill();
         }

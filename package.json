@@ -1,7 +1,7 @@
 {
-  "name": "sunshine-golf-classic",
+  "name": "rainbow-golf-tour",
   "version": "0.11.0",
-  "description": "SUNSHINE GOLF CLASSIC - procedural 18-hole golf for JS13K 2026, built on LittleJS (js13k branch)",
+  "description": "RAINBOW GOLF TOUR - procedural 18-hole golf for JS13K 2026, built on LittleJS (js13k branch)",
   "keywords": [
     "JS13K",
     "LittleJS",
@@ -10,7 +10,7 @@
     "webgl"
   ],
   "author": "Frank Force",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "scripts": {
     "start": "node serve.js",
     "build": "node game/build.mjs",
@@ -21,6 +21,7 @@
     "music": "node game/tools/music.mjs",
     "shotdiff": "node game/tools/shotdiff.mjs",
     "artifact": "node game/tools/artifact.mjs",
+    "sync-public": "node sync-public.mjs",
     "test": "node test/smoke.mjs"
   },
   "devDependencies": {

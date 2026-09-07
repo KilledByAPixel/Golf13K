@@ -12,12 +12,12 @@
  * let pos = vec2(2,3);
  * let particleEmitter = new ParticleEmitter
  * (
- *     pos, 0, 1, 0, 500, PI,      // pos, angle, emitSize, emitTime, emitRate, emitCone
+ *     pos, 0, 1, 0, 500, Math.PI,      // pos, angle, emitSize, emitTime, emitRate, emitCone
  *     tile(0, 16),                // tileInfo
  *     rgb(1,1,1),   rgb(0,0,0),   // colorStartA, colorStartB
  *     rgb(1,1,1,0), rgb(0,0,0,0), // colorEndA, colorEndB
  *     2, .2, .2, .1, .05,  // particleTime, sizeStart, sizeEnd, particleSpeed, particleAngleSpeed
- *     .99, 1, 1, PI, .05,  // damping, angleDamping, gravityScale, particleCone, fadeRate, 
+ *     .99, 1, 1, Math.PI, .05,  // damping, angleDamping, gravityScale, particleCone, fadeRate, 
  *     .5, 1                // randomness, collide, additive, randomColorLinear, renderOrder
  * );
  */
@@ -29,7 +29,7 @@ class ParticleEmitter extends EngineObject
      *  @param {Number|Vector2}  [emitSize] - World space size of the emitter (float for circle diameter, vec2 for rect)
      *  @param {Number} [emitTime] - How long to stay alive (0 is forever)
      *  @param {Number} [emitRate] - How many particles per second to spawn, does not emit if 0
-     *  @param {Number} [emitConeAngle=PI] - Local angle to apply velocity to particles from emitter
+     *  @param {Number} [emitConeAngle=Math.PI] - Local angle to apply velocity to particles from emitter
      *  @param {TileInfo} [tileInfo] - Tile info to render particles (undefined is untextured)
      *  @param {Color} [colorStartA=(1,1,1,1)] - Color at start of life 1, randomized between start colors
      *  @param {Color} [colorStartB=(1,1,1,1)] - Color at start of life 2, randomized between start colors
@@ -59,7 +59,7 @@ class ParticleEmitter extends EngineObject
         emitSize = 0,
         emitTime = 0,
         emitRate = 100,
-        emitConeAngle = PI,
+        emitConeAngle = Math.PI,
         tileInfo,
         colorStartA = new Color,
         colorStartB = new Color,
@@ -73,7 +73,7 @@ class ParticleEmitter extends EngineObject
         damping = 1,
         angleDamping = 1,
         gravityScale = 0,
-        particleConeAngle = PI,
+        particleConeAngle = Math.PI,
         fadeRate = .1,
         randomness = .2, 
         collideTiles = false,

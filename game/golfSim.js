@@ -34,7 +34,7 @@ const PUTT_MAX = 40;
 //   1.3   94%                 22%   <- here
 //   1.4   97%                 28%
 // Halving the putts that cannot go in is worth the longer ones coming back.
-const PUTT_OVER = 1.3;
+const PUTT_OVER = 1.5;
 // How hard a mis-timed second click PUSHES a putt offline. Its own number
 // because push/pull is an ANGLE: the .05 every other club uses is ten yards
 // of miss on a 200yd drive and two CENTIMETRES on a ten yard putt.
@@ -402,7 +402,7 @@ function launchPutt(dist, dir)
 // at the base tapering to .22*s at the top, and collision must sit on the
 // FORGIVING side of what the eye sees or it reads as unfair. The C debug
 // view draws this same number, so what it shows is what the ball hits.
-const TRUNK_R = .22;
+const TRUNK_R = .2;
 
 // one step of flight for b (the ball, or a scratch copy): gravity, wind, drag,
 // lift and the hook/slice curve across the shot direction. wv is the AIR's

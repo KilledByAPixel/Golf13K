@@ -399,7 +399,7 @@ function pushTerrain()
         for (let i=0; i<=cols; ++i)
         {
             const x = xs[i], z = zs[j];
-            const [gx, gz] = slopeAt(x, z, MESH_CELL/2);
+            const [gx, gz] = slopeAt(x, z, MESH_CELL*.5);
             N[j][i] = vec3(-gx, 1, -gz).normalize();
             // groundAt and groundColor must stay ADJACENT and last: the
             // colour reads the lastAlong/lastDist that groundAt leaves
@@ -422,21 +422,25 @@ function pushTerrain()
         if (c.a == 1) C[j][i] = c;
     }
     // Baked tree shadows, cast away from the sun but floored at
-    // SHADOW_MIN_E so a low sun cannot smear them. Fine cells only: a dark
-    // vertex on a coarse ring would streak 100yd.
+    // SHADOW_MIN_E so a low sun cannot smear them. Scans every vertex, not
+    // just the fine corridor cells, so shadows also fall on the coarse
+    // periphery ring; coarse spacing isn't a fixed MESH_CELL step so the
+    // old index-hop math can't reach it.
     const sd = skyDir(SUN_A, Math.max(SUN_E, SHADOW_MIN_E)), sl = 1.2/sd.y;
     for (const t of hole.trees)
     {
         if (t.k > 2) continue; // flowers are far too small to cast one
         const R = t.s*3;
         const sx = t.x - sd.x*t.s*sl, sz = t.z - sd.z*t.s*sl;
-        const i0 = 12 + Math.max(0, (sx - R - xs[12])/MESH_CELL | 0);
-        const j0 = 12 + Math.max(0, (sz - R - zs[12])/MESH_CELL | 0);
-        for (let j=j0; j<=rows-12 && zs[j] < sz + R; ++j)
-        for (let i=i0; i<=cols-12 && xs[i] < sx + R; ++i)
+        for (let j=0; j<=rows; ++j)
         {
-            const d = Math.hypot(xs[i]-sx, zs[j]-sz);
-            if (d < R) C[j][i] = C[j][i].scale(1 - .5*(1 - d/R), 1);
+            if (zs[j] < sz - R || zs[j] > sz + R) continue;
+            for (let i=0; i<=cols; ++i)
+            {
+                if (xs[i] < sx - R || xs[i] > sx + R) continue;
+                const d = Math.hypot(xs[i]-sx, zs[j]-sz);
+                if (d < R) C[j][i] = C[j][i].scale(1 - .5*(1 - d/R), 1);
+            }
         }
     }
     // one triangle strip per row pair (winding: front faces up)
@@ -529,9 +533,8 @@ function pushTreeGL(t)
     // pal.flower plus a small jitter, so a meadow reads as one species with
     // variation - per-flower hues read as confetti. One hole gets the confetti
     // on purpose (rainbowFlowers), being the treeless links.
-    const rainbowFlowers = hole.index == 8;
     const leaf = t.k == 3 ? 
-        hsl(rainbowFlowers ? t.z/99 : hole.index*.37 + R.bool(SECOND_MIX) * .3, 1, R.float(.6,1))
+        hsl(hole.treeDen ? hole.index*.37 + R.bool(SECOND_MIX) * .3 : t.z/99, 1, R.float(.6,1))
         : hslCol(pal.tree, R.float(20), R.float(40));
     // A BUSH IS JUST A LOW TREE with no trunk - same canopy, same collision
     // sphere, one code path. TRUNK_H is the canopy centre and the only thing
@@ -556,7 +559,8 @@ function pushTreeGL(t)
     leaf.a = .92 + hole.wind.s/8*.07;
     if (t.k < 2) // box trunk (a stretched square prism)
         pushLathe(vec3(t.x, gh-1, t.z), [[t.s*.3, 0], [t.s*.2, th]], 4, hslCol(pal.trunk, R.float(20)), rot);
-    pushLathe(vec3(t.x, gh + th, t.z), [[0,-t.s*1.6],[t.s*1.6,0],[0,t.s*1.6]], 4, leaf, rot);
+    const scale = 1.7;
+    pushLathe(vec3(t.x, gh + th, t.z), [[0,-t.s*scale],[t.s*scale,0],[0,t.s*scale]], 4, leaf, rot);
     if (t.k) return; // far tree / bush: one canopy is enough
     // the two side clumps ORBIT the trunk on its heading, each spinning on
     // its own multiple of it, and take HEIGHT and size off the same heading
@@ -683,16 +687,13 @@ function pushLandingGridGL()
 // both right under a close camera, so the ring only gets in the way there.
 function pushLandingRingGL()
 {
-    // distance-compensated size so the ring stays readable at range
-    const d = Math.hypot(predLand.x-camX, predLand.z-camZ);
-    const r = Math.max(3, d*.03), n = 20, w = Math.max(.4, d*.01);
-    const gh = heightAt(predLand.x, predLand.z);
+    const r = 3, n = 20, w = .5;
     glEnableFog = 0;
-    for (let i=0; i<n; ++i)
+    for (let i=n; i--;)
     {
         const col = hsl(predLand.hit ? Math.sin(i/10*Math.PI + time)/9 : i/n + time/4, 1, .6); // (hsl wraps the hue)
-        const pts = [];
-        for (let k=0; k<2; ++k)
+        let pts = [];
+        for (let k=2; k--;)
         {
             const a = (i + k*.8)/n*2*Math.PI;
             const dx = Math.sin(a), dz = Math.cos(a);
@@ -774,7 +775,7 @@ function pushTrailGL()
         const age = (time - s.t)/TRAIL_LIFE;        // 0 fresh .. 1 expiring
         const w = .06*(1 - age);
         const c = packColor(niceShot ? hsl((i + trailTotal)*.02, 1, .6, (1-age)*.8)
-                                     : rgb(1, 1, 1, (1-age)/2));
+                                     : rgb(1, 1, 1, (1-age)*.5));
         pts.push(vec3(s.x-rx*w, s.y+.1, s.z-rz*w), vec3(s.x+rx*w, s.y+.1, s.z+rz*w));
         cols.push(c, c);
     }
@@ -870,7 +871,8 @@ function pushSkyGL()
     // clouds: rows of overlapping soft puffs parked at headings, drifting
     for (let i=7; i--;)
     for (let j=5+i%3; j--;)
-        pushSkyDisc(skyDir(i + .02*time + j*.1, .3 + (i%3)*.3 + Math.sin(j*j+i+.02*time)*.05),
+        //pushSkyDisc(skyDir(i + .01*time + j*.1, .3 + (i%3)*.3 + Math.sin(j*j+i+.01*time)*.05),
+        pushSkyDisc(skyDir(i + (hole.wind.s+2)*.005*time + j*.1, .3 + (i%3)*.3 + Math.sin(j*j+i+(hole.wind.s+2)*.005*time)*.05),
             .2 + Math.sin(j**3)*.05, rgb(1, 1, 1, .4+Math.sin(i+j+time*.1)/4), .5);
     glEnableFog = 1;
 }
@@ -891,7 +893,7 @@ function pushFlareGL()
     for(let i=9; i--;)
     {
         const t = i/20+.2-Math.sin(i**3)*.1, s = .04 + Math.sin(i*i)*.03;
-        pushSkyDisc(sun.scale(1-t).add(fwd.scale(t)).normalize(), s, hsl(k/2+i/5, Math.sin(i**3)**2, .3, k));
+        pushSkyDisc(sun.scale(1-t).add(fwd.scale(t)).normalize(), s, hsl(k*.5+i/5, Math.sin(i**3)**2, .3, k));
     }
     glEnableFog = 1;
 }

@@ -296,8 +296,9 @@ function devHud(midX, T)
 {
     if (mapView)
     {
-        txt(`MAP - HOLE ${holeIndex+1} · PAR ${hole.par} · ${hole.len|0}yd · [ ] = PREV/NEXT HOLE · M = EXIT`,
-            midX, T-T*.04, T*.024);
+        txt(`HOLE ${holeIndex+1} · PAR ${hole.par} · ${hole.len|0}yd`,  midX, T-T*.06, T*.07);
+
+        //txt(`MAP - HOLE ${holeIndex+1} · PAR ${hole.par} · ${hole.len|0}yd · [ ] = PREV/NEXT HOLE · M = EXIT`,  midX, T-T*.04, T*.024);
         return 1;
     }
     if (freeCam && !DEV_THUMBNAIL)

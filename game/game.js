@@ -18,7 +18,7 @@ let spinMode = 0;                       // the spin chip: -1 back, 0 none, 1 top
 
 // Where the shot is predicted to stop, and the yards to it. ONE simulation
 // feeds every aim aid (predPath line, ring, printed yards), so none disagree.
-let predLand = vec3(), predDist = 0;
+let predLand = vec3(), predDist = 0, predPinDist = 0, predLieLabel;
 let placeView = 0, turnHold = 0;        // preview cam on?, turn-accel counter
 
 // Frames the camera holds still after a swing before it starts chasing.
@@ -172,6 +172,8 @@ function updatePredict()
 {
     predLand = predictLanding(clubI, aimYaw, spinMode, lieMul(), shotPower(1));
     predDist = Math.hypot(predLand.x-ball.x, predLand.z-ball.z);
+    predPinDist = ballToPin();
+    predLieLabel = SURF_NAMES[ballGround().s];
 }
 
 function enterAim()
@@ -258,7 +260,7 @@ function menuRect(i)
 {
     const W = mainCanvasSize.x, T = mainCanvasSize.y;
     const w = W*.3, h = T*.18;
-    return {x: (W-w)/2 + (i-1)*w*1.1, y: T*.8, w, h};
+    return {x: (W-w)*.5 + (i-1)*w*1.1, y: T*.8, w, h};
 }
 // the button under p: 1 CONTINUE, 2 CLASSIC, 3 REMIX, 0 none
 function menuAt(p)
@@ -316,7 +318,7 @@ function menuPick(b)
     // CONTINUE resumes a save, or puts a finished round's card back up at once
     if (b == 1)
         savedGame ? continueGame()
-            : roundOver() && (setState(ST_HOLEOUT), stateTime = CARD_T);
+            : roundOver() && (setState(ST_HOLEOUT), stateTime = CARD_T + 1);
     // REMIX is locked until classic is beaten at PAR OR BETTER: bests are stored
     // OVER par, so `<= 0` is the whole test (undefined <= 0 is false too)
     else if (b && (b < 3 || localStorage['sg_best_c'] <= 0))
@@ -347,14 +349,14 @@ function meterRect()
 {
     const W = mainCanvasSize.x, T = mainCanvasSize.y;
     const bw = Math.min(W*.9, T*1.1), bh = T*.05; // (W*.9: phones in portrait)
-    return {bx: (W-bw)/2, by: T*.85, bw, bh};
+    return {bx: (W-bw)*.5, by: T*.85, bw, bh};
 }
 
 function mouseOverMeter()
 {
     const m = meterRect();
     return mousePosScreen.x > m.bx - m.bh && mousePosScreen.x < m.bx + m.bw + m.bh
-        && mousePosScreen.y > m.by - m.bh/2 && mousePosScreen.y < m.by + m.bh*1.5;
+        && mousePosScreen.y > m.by - m.bh*.5 && mousePosScreen.y < m.by + m.bh*1.5;
 }
 
 // on-screen turn arrow hit test: -1 left, 1 right, 0 neither
@@ -364,7 +366,7 @@ function turnBtnAt(p)
     // MUST return a number on every path: an undefined outside the band makes
     // `dir = turnBtnAt(..) - keyIsDown(..)` NaN and poisons aimYaw. `&&`
     // yields false there, which is arithmetic 0 at the call site.
-    return (p.y > T/2 - s*1.4 & p.y < T/2 + s*1.4)
+    return (p.y > T*.5 - s*1.4 & p.y < T*.5 + s*1.4)
         && (p.x > W - ax - s) - (p.x < ax + s);
 }
 
@@ -459,7 +461,7 @@ function meterBtnAt(p)
     {
         const dx = p.x - xs[i];
         if (dx >= 0 & dx <= w)
-            return i == 1 ? 3 : (i>>1)*3 + 1 + (dx > w/2);
+            return i == 1 ? 3 : (i>>1)*3 + 1 + (dx > w*.5);
     }
     return 0;
 }
@@ -583,7 +585,11 @@ function updateFlight()
             // STROKES. The walk STOPS AT shotStart (dl is the distance to it):
             // the ball was at rest there, so it is the one spot guaranteed to
             // hold, and it is stroke-and-distance when the line back crosses
-            // the water - an island green has no land between.
+            // the water - an island green has no land between. Never rest ON
+            // the green itself: an overshoot into the water beyond an island
+            // green would otherwise walk back only as far as the green it
+            // just cleared, turning a splash into a free re-spot on the putting
+            // surface. shotStart (t == dl) is exempt - it was a real lie.
             for (let d = 2; ; d += 2)
             {
                 const t = Math.min(d, dl);
@@ -591,7 +597,7 @@ function updateFlight()
                 ball.z = ballSafe.z + dz/dl*t;
                 const g = ballGround();
                 ball.y = g.h;
-                if (t == dl || g.s < SURF_WATER
+                if (t == dl || g.s < SURF_WATER && g.s != SURF_GREEN
                     && Math.hypot(...slopeAt(ball.x, ball.z))*GRAV < SURF_PHYS[g.s][2])
                     break;
             }
@@ -622,7 +628,12 @@ function updateHoleOut()
     // the card at CARD_T on its own test. The bot uses its own 40-frame clock.
     if (stateTime > (holeIndex > 16 ? 140 : CARD_T) && clickPressed()
         || autoPlay && stateTime > 40)
-        nextHole();
+        // CONTINUE can reopen an already-finished round's card (roundOver()):
+        // dismissing that is just leaving the review, not finishing a hole -
+        // nextHole() would re-run the round-end bookkeeping and keep bumping
+        // holeIndex past the course length every time, eventually indexing
+        // courseRows out of bounds.
+        roundOver() ? setState(ST_TITLE) : nextHole();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

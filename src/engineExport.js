@@ -130,7 +130,6 @@ export {
 	setDebugKey,
 
 	// Utilities
-	PI,
 	abs,
 	min,
 	max,

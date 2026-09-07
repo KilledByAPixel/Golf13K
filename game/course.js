@@ -44,17 +44,17 @@ const CLASSIC_HOLES =
     // middle: Lake - water arrives, doglegs harden
     [5, .90, 40, -.7, 2, .8, .8, .5],
     [3, .90,  0,   0, 1,  1, .4, .4],   // island par 3
-    [4,1.00, 36,  -1.5, 3, .8,  0, .3],   // LINKS: not a tree, 3 bunkers, the wind is the hole
+    [4,1.00, 36,  1.5, 3, .8,  0, .3],   // LINKS: not a tree, 3 bunkers, the wind is the hole
     [4, .95, 36, -.9, 3, .5,  1, .7],   // the river
     [5,1.00, 36,   2, 2, .7,  1, .6],   // S par 5
-    [4, .56, 30,   0, 1,  1, .8, .6],   // DRIVABLE island par 4, 230yd: driver over the lake, or lay up and wedge
+    [4, .6, 30,   .9, 1,  1, .7, .3],   // island par 4 with bend, driver over the lake, or lay up and wedge
     // back: Cliffs - narrow, hilly, mean
     [4,1.05, 30,   .5, 3, .3,1.2,1.1],  // the tree in the fairway
-    [4,1.10, 28,   -1, 0,  .6,1.2,1.3],  // the HILLS are the hazard: no sand, some water
-    [5,1.05, 30,  2.2, 2, .5,1.0,  1],  // hairpin par 5 (see dogleg note)
+    [4,1.10, 28,   -1, 0,  .6,1.2,1.2],  // the HILLS are the hazard: no sand, some water
+    [5,1.05, 30,  2.2, 2, .5,1.0,  .8],  // hairpin par 5 (see dogleg note)
     [3,1.10,  0,   0,  4, .5, .5,  1],  // bunkered par 3 over broken ground
-    [4,1.20, 24,   1,  2, .5,1.3,1.2],  // NARROWEST fairway on the course
-    [5,1.10, 28,   2,  2, .9,1.4,1.1],
+    [4,1.10, 24,   1,  2, .5,.7, 1],  // NARROWEST fairway on the course
+    [5,1.10, 28,   2,  2, .9,1.2,1.2],
 ];
 
 let hole;          // current generated hole
@@ -174,13 +174,16 @@ function heightAt(x, z)
     // interpolates the shape the ball is actually standing on. Widening the 3
     // softens the bank and eats more green; narrowing it does the reverse.
     // Gated on k, the plateau's own reach, so a green with no lake near it is
-    // untouched.
+    // untouched. BANK_R sets how far past the true shoreline (nd=1) the bank
+    // keeps fading - it MUST feed both the guard and the smoothstep's zero
+    // point, or the fade gets cut off before it reaches 0 and leaves a seam.
+    const BANK_R = 1.2;
     if (k)
         for (const w of hole.waters)
         {
             const nd = ellipseDist(x, z, w);
-            if (nd < 1.5)
-                h = lerp(h, w.h+waterOffset, smoothStep((1.5-nd)/.5)
+            if (nd < BANK_R)
+                h = lerp(h, w.h+waterOffset, smoothStep((BANK_R-nd)/(BANK_R-1))
                     * smoothStep((dg - hole.gr)/3 + 1));
         }
     // tee pad (the tee is the origin)
@@ -226,7 +229,7 @@ function surfaceAt(x, z)
     {
         // fairway breathes: width swells and pinches along the hole, edges wiggle
         const fwHere = hole.fw*(1 + (noise2(lastAlong*.014, hole.index*7+3)-.5)*.9);
-        if (dp < fwHere/2 + (noise2(x*.09+5, z*.09)-.5)*7)
+        if (dp < fwHere*.5 + (noise2(x*.09+5, z*.09)-.5)*7)
             return SURF_FAIRWAY;
     }
     return SURF_ROUGH;
@@ -255,7 +258,7 @@ function genHole(courseSeed, index, row)
     for (const k in PAL)
         pal[k] = PAL[k][0].map((v, i)=> lerp(v, PAL[k][1][i], index/17));
 
-    hole = {par, len, fw, hills, pal, index,
+    hole = {par, len, fw, hills, pal, index, treeDen,
          path: [], bunkers: [], waters: [], trees: []};
 
     // Centerline path with doglegs. A point is {x, z, along}: along is the
@@ -317,7 +320,7 @@ function genHole(courseSeed, index, row)
     // 7 keeps about one 20mph+ hole a round; 6 deletes it. glRender's leaf.a
     // divides by 1+MAXWIND for the foliage sway - change one, change the other.
     const MAXWIND = 7;
-    hole.wind = {a: rand(PI*2), s: 1 + rand()**2*MAXWIND};
+    hole.wind = {a: rand(Math.PI*2), s: 1 + rand()**2*MAXWIND};
 
     // bunkers: randomly placed sand
     let side = R.sign();
@@ -333,7 +336,7 @@ function genHole(courseSeed, index, row)
             // fairway bunker at a landing zone
             side *= -1;
             const p = pathPointAt(len*R.float(.4, .9));
-            hole.bunkers.push({x: p.x + side*(fw/2 + R.float(-2,4)), z: p.z,
+            hole.bunkers.push({x: p.x + side*(fw*.5 + R.float(-2,4)), z: p.z,
                             rx:R.float(6,18), rz:R.float(6,18)});
         }
     }
@@ -351,7 +354,7 @@ function genHole(courseSeed, index, row)
     if (isRiverHole)
     {
         // river: a wide lake across the middle of the hole
-        const p = pathPointAt(len/2);
+        const p = pathPointAt(len*.5);
         hole.waters.push({x:p.x, z:p.z, rx:60, rz:9});
     }
 
@@ -368,7 +371,7 @@ function genHole(courseSeed, index, row)
         {
             const p = pathPointAt(len*R.float(.4, 1));
             side *= -1;
-            hole.waters.push({x: p.x + side*(fw/2 + R.float(9, 22)), z: p.z + R.floatSign(15),
+            hole.waters.push({x: p.x + side*(fw*.5 + R.float(9, 22)), z: p.z + R.floatSign(15),
                            rx: R.float(14, 26), rz: R.float(16, 34)});
         }
     }
@@ -380,14 +383,15 @@ function genHole(courseSeed, index, row)
     const addTree = (x, z, s, k)=> hole.trees.push({x, z, s, k});
 
     // framing trees: scattered outside the fairway along the hole
-    const treeCount = Math.min(400, treeDen*len*.6 | 0);
+    const treeCount = Math.min(400, treeDen*len*.5 | 0);
+    const treeScale = index != 4 || 2;
     for (let i=treeCount; i-- && hole.trees.length<treeCount;)
     {
         const p = pathPointAt(R.float(-9, len*1.1));
-        const x = p.x + R.sign()*((fw/2 || 12) + R.float(4, 38));
+        const x = p.x + R.sign()*((fw*.5 || 12) + R.float(4, 70));
         const z = p.z + R.floatSign(9);
         if (surfaceAt(x, z) == SURF_ROUGH)
-            addTree(x, z, R.float(1, 2)**2, 0);
+            addTree(x, z, treeScale*R.float(2, 6), 0);
     }
 
     // periphery forest: clumps and clearings off the playable corridor
@@ -400,8 +404,8 @@ function genHole(courseSeed, index, row)
         // .48 IS LOAD-BEARING: the draws below are spent only when this passes,
         // so moving it shifts the R stream and re-rolls everything after -
         // including every BUSH, which collides. Hoist the draws to tune density.
-        if (dp > 75 && noise2(x*.02+5, z*.02) > .48)
-            addTree(x, z, R.float(1.5, 3)*(1 + R.bool(.25)), dp > 180 ? 1 : 0);
+        if (dp > 75 && noise2(x*.02+5, z*.02) > .5)
+            addTree(x, z, treeScale*R.float(2, 8), dp > 180 ? 1 : 0);
     }
 
     // Bushes through the rough AND out into the periphery: the offset reaches
@@ -427,7 +431,7 @@ function genHole(courseSeed, index, row)
     for (let i=treeDen?1e3:9e3; i--;)
     {
         const p = pathPointAt(R.float(0, len));
-        const x = p.x + R.floatSign(8, 400), z = p.z + R.floatSign(80);
+        const x = p.x + R.floatSign(8, 300), z = p.z + R.floatSign(80);
         const sf = surfaceAt(x, z);
         if (sf == SURF_ROUGH || sf == SURF_OB)
             addTree(x, z, R.float(.1, .2), 3);
@@ -438,7 +442,7 @@ function genHole(courseSeed, index, row)
     if (isHardTreeHole)
     {
         const p = pathPointAt(len*.28);
-        addTree(p.x, p.z, 3, 0);
+        addTree(p.x, p.z, 4, 0);
     }
     // Everything the ball can hit - the even kinds. t.y is the CANOPY CENTRE,
     // not the ground: baking the trunk height in lets flyStep test one sphere

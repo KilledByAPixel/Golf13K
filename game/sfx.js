@@ -15,7 +15,7 @@ const sfxGen = (volume = 1, randomness, frequency = 220, attack = 0,
     deltaSlide = 0, pitchJump = 0, pitchJumpTime = 0, repeatTime = 0,
     noise = 0, modulation, bitCrush, delay = 0, sustainVolume = 1, decay = 0)=>
 {
-    const PI2 = PI*2, SR = audioDefaultSampleRate;
+    const PI2 = Math.PI*2, SR = audioDefaultSampleRate;
     let startSlide = slide *= 500 * PI2 / SR / SR,
         startFrequency = frequency *= PI2 / SR,
         b = [], t = 0, i = 0, j = 1, r = 0, s = 0, f, length;
@@ -54,9 +54,9 @@ const sfxGen = (volume = 1, randomness, frequency = 220, attack = 0,
             sustainVolume :                          // release volume
             0);                                      // post release
 
-        s = delay ? s/2 + (delay > i ? 0 :           // delay
+        s = delay ? s*.5 + (delay > i ? 0 :           // delay
             (i<length-delay? 1 : (length-i)/delay) * // release delay
-            b[i-delay|0]/2/volume) : s;              // sample delay
+            b[i-delay|0]*.5/volume) : s;              // sample delay
 
         f = frequency += slide += deltaSlide;        // frequency
         t += f + f*noise*Math.sin(i**5);             // noise
@@ -91,7 +91,15 @@ class Sfx
     play(volume=1, rate=1, jitter=1)
     {
         if (!soundEnable) return; // dev: silent until the first click
-        const ctx = audioContext, src = ctx.createBufferSource(), g = ctx.createGain();
+
+        const ctx = audioContext;
+        if (ctx.state != 'running')
+        {
+            ctx.resume();
+            return;
+        }
+
+        const src = ctx.createBufferSource(), g = ctx.createGain();
         const b = ctx.createBuffer(1, this.s.length, audioDefaultSampleRate);
         b.getChannelData(0).set(this.s);
         src.buffer = b;
@@ -99,8 +107,7 @@ class Sfx
         // soundVolume is the engine's master gain, applied here instead
         g.gain.value = volume * soundVolume;
         src.connect(g).connect(ctx.destination);
-        // a click resumes the context, but that is async: start after it
-        ctx.state == 'running' ? src.start() : ctx.resume().then(()=> src.start());
+        src.start();
     }
     playNote(semitones, volume) { this.play(volume, 2**(semitones/12), 0); }
 }

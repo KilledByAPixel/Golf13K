@@ -11,12 +11,6 @@
 
 'use strict';
 
-/** A shortcut to get Math.PI
- *  @type {number}
- *  @default Math.PI
- *  @memberof Math */
-const PI = Math.PI;
-
 /** Returns absolute value of value passed in
  *  @param {number} x
  *  @return {number}
@@ -117,7 +111,7 @@ function lerpWrap(valueA, valueB, percent, wrapSize=1)
  *  @param {number} angleB
  *  @returns {number}
  *  @memberof Math */
-function distanceAngle(angleA, angleB) { return distanceWrap(angleA, angleB, 2*PI); }
+function distanceAngle(angleA, angleB) { return distanceWrap(angleA, angleB, 2*Math.PI); }
 
 /** Linearly interpolates between the angles passed in with wrapping
  *  @param {number} angleA
@@ -125,7 +119,7 @@ function distanceAngle(angleA, angleB) { return distanceWrap(angleA, angleB, 2*P
  *  @param {number} percent
  *  @returns {number}
  *  @memberof Math */
-function lerpAngle(angleA, angleB, percent) { return lerpWrap(angleA, angleB, percent, 2*PI); }
+function lerpAngle(angleA, angleB, percent) { return lerpWrap(angleA, angleB, percent, 2*Math.PI); }
 
 /** Applies smoothstep function to the percentage value
  *  @param {number} percent
@@ -304,7 +298,7 @@ function oscillate(frequency=1, amplitude=1, t=time, offset=0, type=0)
     else if (type === 3) // sawtooth
         value = 2 * phase - 1;
     else // sine
-        value = -Math.cos(phase * 2*PI);
+        value = -Math.cos(phase * 2*Math.PI);
     return amplitude/2 * (value + 1);
 }
 
@@ -360,7 +354,7 @@ function randSign() { return randInt(2) * 2 - 1; }
  *  @param {number} [length]
  *  @return {Vector2}
  *  @memberof Random */
-function randVec2(length=1) { return new Vector2().setAngle(rand(2*PI), length); }
+function randVec2(length=1) { return new Vector2().setAngle(rand(2*Math.PI), length); }
 
 /** Returns a random Vector2 within a circular shape
  *  @param {number} [radius]
@@ -437,10 +431,6 @@ class RandomGenerator
     *  @param {number} [valueB]
     *  @return {number} */
     floatSign(valueA=1, valueB=0) { return this.float(valueA, valueB) * this.sign(); }
-
-    /** Returns a random angle between -PI and PI
-    *  @return {number} */
-    //angle() { return this.float(-PI, PI); }
 
     /** Returns a seeded vec2 with size between the two values passed in
     *  @param {number} valueA
