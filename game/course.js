@@ -128,7 +128,7 @@ const ellipseDist = (x, z, e)=> Math.hypot((x-e.x)/e.rx, (z-e.z)/e.rz);
 function heightRaw(x, z)
 {
     return (noise2(x*.017+9, z*.017)-.5)*24*hole.hills
-         + (noise2(x*.06, z*.06+7)-.5)*6*hole.hills;
+         + (noise2(x*.04, z*.04+7)-.5)*6*hole.hills;
 }
 
 function heightAt(x, z)
@@ -384,7 +384,7 @@ function genHole(courseSeed, index, row)
 
     // framing trees: scattered outside the fairway along the hole
     const treeCount = Math.min(400, treeDen*len*.5 | 0);
-    const treeScale = index != 4 || 2;
+    const treeScale = index != 4 || remixMode || 2;
     for (let i=treeCount; i-- && hole.trees.length<treeCount;)
     {
         const p = pathPointAt(R.float(-9, len*1.1));

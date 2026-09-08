@@ -40,7 +40,7 @@ const asciiArt =`
 .|________|_._|______|_._|__|_|_|}
   OOO  OOO     OO  OO     OO=OO-oo\\
 `;
-const license = '// LittleJS Engine - MIT License - Copyright 2021 Frank Force\n'+
+const license = '// LittleJS Engine - Copyright 2021 Frank Force - All rights reserved\n'+
                 '// https://github.com/KilledByAPixel/LittleJS\n';
 
 console.log(asciiArt);

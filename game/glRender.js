@@ -918,8 +918,13 @@ function hideTrees()
 function renderViewGL()
 {
     glPreRender();
+
+    // disable blend for ground to fix cracks
+    const DISABLE_BLEND = 0;
+    DISABLE_BLEND && glContext.disable(gl_BLEND);
     glSetBuffer(glStaticBuffer);
     glContext.drawArrays(gl_TRIANGLE_STRIP, 0, glStaticCount);
+    DISABLE_BLEND && glContext.enable(gl_BLEND);
     // OPAQUE dynamic props, writing depth like the world does
     pushPinGL();
     pushBallGL();

@@ -24,10 +24,12 @@ globalThis.eq = (actual, expected, msg)=>
 
 // glRender.js loads too (it only defines functions at load; glInit is never
 // called here), so the packed-color / primitive helpers are testable.
-// sfxBounce / snd_bounce are stubbed because sfx.js is never loaded: a NEW
-// sound called from golfSim breaks this and sim.mjs until it is stubbed in each.
+// sfxBounce / snd_bounce are stubbed because sfx.js is never loaded, and
+// remixMode because game.js is not either: a NEW sound called from golfSim, or
+// a NEW game.js global read from course.js, breaks this and sim.mjs until it
+// is declared in each.
 const src =
-    'let debug=0; const ASSERT=()=>{}; let time=0, frame=0; const sfxBounce=()=>{}; const snd_bounce={play(){}};\n'
+    'let debug=0; const ASSERT=()=>{}; let time=0, frame=0; let remixMode=0; const sfxBounce=()=>{}; const snd_bounce={play(){}};\n'
     // Wind is rolled per PLAY from Math.random, so seed it (the same LCG as
     // sim.mjs --fixed) or any case that depends on it is flaky.
     + 'let _s=1; Math.random = ()=> { _s = (_s*1664525 + 1013904223) >>> 0; return _s/2**32; };\n'

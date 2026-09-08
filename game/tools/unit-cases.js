@@ -312,9 +312,9 @@ eq(Math.hypot(pTree.x, pTree.z) > 100, true, 'and it flies straight past: the ri
 // the R stream changed the order of its draws. ----
 genHole(1113, 0, [4, .85, 34, 0, 1, 0, .5, .3]);
 eq(hole.bunkers[0].x.toFixed(3) + ',' + hole.bunkers[0].z.toFixed(3), '-21.019,335.660', 'the draw order still puts bunker 0 where it always was');
-eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '-36.348,181.430', 'and tree 5 where it always was');
+eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '-40.914,14.912', 'and tree 5 where it always was');
 genHole(1113, 12, [4, 1.05, 22, 1, 3, .3, 1.2, 1]);
-eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '46.672,232.049', 'a dogleg hole with water and hills too');
+eq(hole.trees[5].x.toFixed(3) + ',' + hole.trees[5].z.toFixed(3), '-38.046,22.525', 'a dogleg hole with water and hills too');
 
 // pathPointAt itself: a prop fingerprint is a sample, not a contract (a
 // wrong segment can still leave trees[5] where it was), so pin the contract

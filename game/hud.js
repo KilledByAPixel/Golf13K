@@ -13,7 +13,7 @@
     purely from where it lands in the concatenated source. */
 
 const GOLD = '#fd4';
-const pinColor = '#f35';
+const PIN_COLOR = '#f35';
 const FONT = 'impact';
 //const FONT = 'none';
 
@@ -134,7 +134,7 @@ function gameRenderPost()
             const my = front ? clamp(pp.y, T*.3, T*.7) : T*.3;
             // hovers above the flag top so the real flag stays visible under it
             const bob = Math.sin(time*3)*T*.006;
-            txt('⚑', mx, my - T*.04 + bob, T*.04, 'center', pinColor);
+            txt('⚑', mx, my - T*.04 + bob, T*.04, 'center', PIN_COLOR);
             //tri(mx, my + bob-T*.05, T*.01, Math.PI, '#f35', 2, T*.001);
             txt(`${dPin|0}`, mx, my - T*.08 + bob, T*.03);
         }
@@ -237,8 +237,8 @@ function renderMeter()
     // WHERE THE CUP FALLS on the bar
     if (predPinDist < predDist)
     {
-        fillRect(t2x(predPinDist/predDist), by+bh*.5, 6, bh*1.6, pinColor);
-        txt('⚑', t2x(predPinDist/predDist), by-bh*.5, bh, 'center', pinColor);
+        fillRect(t2x(predPinDist/predDist), by+bh*.5, 6, bh*1.6, PIN_COLOR);
+        txt('⚑', t2x(predPinDist/predDist), by-bh*.5, bh, 'center', PIN_COLOR);
     }
     // the sweet spot, on every club: launchBall snaps err to zero inside
     // |impact| < .02. The .06 that prints GOOD is not drawn - nothing happens there.

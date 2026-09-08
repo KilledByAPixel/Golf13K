@@ -10,7 +10,8 @@
     "webgl"
   ],
   "author": "Frank Force",
-  "license": "MIT",
+  "license": "UNLICENSED",
+  "private": true,
   "scripts": {
     "start": "node serve.js",
     "build": "node game/build.mjs",

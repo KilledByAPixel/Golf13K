@@ -34,6 +34,7 @@
 // 1 = locked title layout for grabbing the js13k thumbnail. It is read
 // OUTSIDE a debug gate in hud.js, so leaving it at 1 changes the RELEASE:
 // Closure folds the title on and deletes the menu, HUD and scorecard.
+const AUTO_CHANGE_LEVEL = 0;
 const DEV_THUMBNAIL = 0;
 const THROW_V = 45; // yd/s the free cam's B key throws the ball at
 
@@ -296,9 +297,17 @@ function devHud(midX, T)
 {
     if (mapView)
     {
-        txt(`HOLE ${holeIndex+1} · PAR ${hole.par} · ${hole.len|0}yd`,  midX, T-T*.06, T*.07);
+        if (AUTO_CHANGE_LEVEL)
+        {
+            rainbowText('SUNSHINE', midX, T*.04, T*.06);
+            rainbowText('GOLF CLASSIC', midX, T*.09, T*.045, 1);
 
-        //txt(`MAP - HOLE ${holeIndex+1} · PAR ${hole.par} · ${hole.len|0}yd · [ ] = PREV/NEXT HOLE · M = EXIT`,  midX, T-T*.04, T*.024);
+            txt(`HOLE ${holeIndex+1} · PAR ${hole.par} · ${hole.len|0}yd`,  midX, T-T*.05, T*.07);
+        }
+        else
+        {
+            txt(`MAP - HOLE ${holeIndex+1} · PAR ${hole.par} · ${hole.len|0}yd · [ ] = PREV/NEXT HOLE · M = EXIT`,  midX, T-T*.04, T*.024);
+        }
         return 1;
     }
     if (freeCam && !DEV_THUMBNAIL)
@@ -329,6 +338,8 @@ function devHud(midX, T)
 ///////////////////////////////////////////////////////////////////////////////
 // debug keys and the free cam. Returns 1 when the frame is swallowed.
 
+const levelChangeTimer = new Timer;
+
 function devUpdate()
 {
     if (!soundEnable && mouseWasPressed(0))
@@ -341,9 +352,15 @@ function devUpdate()
         exitFreeCam();
         stateTime = 0; // the intro replays when the map closes
     }
-    const skip = cheatsOn ? (keyWasPressed('BracketRight')?1:0) - (keyWasPressed('BracketLeft')?1:0) : 0;
+
+
+    let skip = cheatsOn ? (keyWasPressed('BracketRight')?1:0) - (keyWasPressed('BracketLeft')?1:0) : 0;
+    if (AUTO_CHANGE_LEVEL && !levelChangeTimer.active())
+        skip = 1;
+
     if (skip)
     {
+        levelChangeTimer.set(2);
         holeIndex = (holeIndex + 18 + skip)%18;
         startHole();
         puttMode && puttDrop(); // stay on the greens while hopping holes

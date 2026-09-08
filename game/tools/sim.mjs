@@ -32,7 +32,7 @@ if (process.argv.includes('--fixed'))
 }
 
 const src =
-    'let debug=0; const ASSERT=()=>{}; let time=0, frame=0; const sfxBounce=()=>{}; const snd_bounce={play(){}};\n'
+    'let debug=0; const ASSERT=()=>{}; let time=0, frame=0; let remixMode=0; const sfxBounce=()=>{}; const snd_bounce={play(){}};\n'
     + read('../../src/engineMath.js')
     + read('../course.js')
     + read('../golfSim.js')
@@ -40,6 +40,7 @@ const src =
 // ---- bot round ----
 const rnd=(a=1,b=0)=>b+Math.random()*(a-b);
 forestMul = ${treesArg || 1};
+remixMode = ${remix ? 1 : 0};   // course.js reads it; game.js is not loaded here
 const rows = genCourse(${seedArg}, ${remix ? 1 : 0});
 let total=0, totalPar=0, stats={fairwayHits:0, girs:0, putts:0, water:0, ob:0, maxHole:0};
 for (let hi=0; hi<18; ++hi)

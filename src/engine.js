@@ -1,6 +1,6 @@
 /** 
  * LittleJS - The Tiny Fast JavaScript Game Engine
- * MIT License - Copyright 2021 Frank Force
+ * Copyright 2021-2026 Frank Force - All rights reserved, see LICENSE
  * 
  * Engine Features
  * - Object oriented system with base class engine object
