@@ -10,11 +10,14 @@
 const CLUBS =
 [
     ['1W',235,11],['3W',215,14],['5W',198,17],['3i',183,19],['5i',168,22],
-    ['7i',150,26],['9i',131,31],['13i',120,41],['PW',108,38],['SW',78,48],['PT',0,0]
+    ['7i',150,26],['9i',131,31],['13i',120,41],['PW',98,38],['SW',78,48],['PT',0,0]
 ];
-// THE 13 IRON is the jam's number in the bag and breaks the ladder on
-// purpose: it fills the set's one real gap (120yd) with MORE loft than the PW
-// it outdrives - the highest flight and least run of anything past 100yd.
+// THE 13 IRON is the jam's number in the bag: MORE loft than the PW it
+// outdrives by a full club, and the highest flight of anything past 100yd.
+// MEASURED flat and calm it carries 113 for its 120 label, 6% short, and
+// more loft only deepens that (48 deg reads .89) because the CARRY_K fit
+// covers the bag's real lofts - so the PW is held at 98 to stay a club
+// clear of it (it carries 100), rather than the 13i being moved.
 // NOTE the meter dials any distance under a club's max, so what a club really
 // picks is a LAUNCH ANGLE, and with it the arc, the descent and the run.
 const CLUB_PUTTER = 10;
@@ -469,6 +472,15 @@ function flyStep(b, curve, wv = hole.wind.s*WIND_V)
     }
 }
 
+// WHAT THE LIE COSTS THIS CLUB, in ONE place: targetMax, launchBall, both
+// bots and autoClub all read it, so the meter promises what the ball
+// delivers. In sand a wedge skids where an iron digs, so a NON-WEDGE pays
+// an extra half - PW (8) and SW (9) are the wedges, hence `c < 8`.
+// Defaults to the club in hand; autoClub passes a CANDIDATE instead, which
+// is what lets it choose a club that can actually reach out of sand.
+const lieMul = (c = clubI)=> SURF_PHYS[ballGround().s][3]
+    * (ballGround().s == SURF_BUNKER && c < 8 ? .5 : 1);
+
 // One step of roll for b - the ball, or the putt preview's scratch copy.
 // Slope pull, then friction, then move. Returns the speed BEFORE the step
 // (the cup test wants that) and sets rollRest when friction can hold the
@@ -672,8 +684,8 @@ function autoClub()
     // reach off the green, which is 120/friction = 20yd on fairway or tee
     if (s == SURF_GREEN || (d < 19 && s != SURF_BUNKER && s != SURF_ROUGH))
         return CLUB_PUTTER;
-    if (s == SURF_BUNKER)
-        return 9; // SW
+    // NO bunker special case: the walk below tests every candidate against
+    // its OWN lie, so sand picks the wedge that reaches without being told to.
     // 15% OF HEADROOM, never a bare fit. A club chosen to
     // just barely reach the pin cannot be pushed any further, and INTO A
     // WIND it has to be: a headwind at the top of the range takes about 14%
@@ -684,15 +696,14 @@ function autoClub()
     // Bigger margins were measured and are worse: 1.2 costs 2 bytes and the
     // bot went +1 to +6, because a longer club flies flatter and runs on,
     // which is exactly what an approach does not want.
-    // THE LIE IS IN IT TOO: k is the surface's power multiplier over that
-    // margin, so the test is the club's REAL carry from here against the
-    // distance. Without it the rough would be handed clubs that cannot reach
-    // at any power, which is the same trap as the wind one above.
+    // THE LIE IS IN IT TOO, and PER CANDIDATE CLUB: the test is that club's
+    // REAL carry from this lie against the distance. Without it the rough
+    // would be handed clubs that cannot reach at any power, and sand would be
+    // handed a long club that flies a fifth of its number.
     // `i--` walks 9 down to 0 (shortest club first) and `!i` hands over the
     // driver when nothing reaches.
-    const k = SURF_PHYS[s][3]/1.15;
     for (let i=CLUB_PUTTER; i--;)
-        if (CLUBS[i][1]*k >= d || !i)
+        if (CLUBS[i][1]*lieMul(i)/1.15 >= d || !i)
             return i;
 }
 

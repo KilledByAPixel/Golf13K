@@ -132,15 +132,20 @@ for (let hi=0; hi<18; ++hi)
     genHole(${seedArg}, hi, rows[hi]);
     ball.x=hole.path[0].x; ball.z=hole.path[0].z; ball.y=groundAt(ball.x,ball.z).h;
     ball.vx=ball.vy=ball.vz=0;
-    let strokes=0, putts=0, log=[];
+    let strokes=0, putts=0, log=[], lastX=9e9, lastZ=9e9;
     for (let shot=0; shot<15 && strokes < hole.par+5; ++shot)
     {
         const d = ballToPin();
         const g = groundAt(ball.x, ball.z);
-        const clubI = autoClub();
+        let clubI = autoClub();
+        // STUCK ESCAPE (mirrors botSwing): under 15yd gained means pinned
+        // against a hill face or a trunk, so club up to the SW and pop over
+        if (clubI != CLUB_PUTTER && Math.hypot(ball.x-lastX, ball.z-lastZ) < 15)
+            clubI = CLUB_PUTTER-1;
+        lastX = ball.x; lastZ = ball.z;
         ++strokes;
         // aim at fairway landing zone on long shots, pin otherwise
-        const carry0 = CLUBS[clubI][1]*SURF_PHYS[g.s][3];
+        const carry0 = CLUBS[clubI][1]*lieMul(clubI);
         distToPath(ball.x, ball.z);
         let tgt = hole.pin;
         if (clubI != CLUB_PUTTER && d > carry0+20)
@@ -160,7 +165,7 @@ for (let hi=0; hi<18; ++hi)
             // short of what the ball actually does (measured: a driver in a
             // 10 crosswind drifts 41yd; this bot corrected for 24, the
             // watched one for 42)
-            const lv = launchVel({}, clubI, 0, SURF_PHYS[g.s][3]);
+            const lv = launchVel({}, clubI, 0, lieMul(clubI));
             const tf = 2*lv.vy/GRAV;
             drift = hole.wind.s*DRAG_K*WIND_V*Math.hypot(lv.vx, lv.vz)*tf*tf/2;
             const tx = tgt.x - Math.sin(hole.wind.a)*drift, tz = tgt.z - Math.cos(hole.wind.a)*drift;
@@ -176,7 +181,7 @@ for (let hi=0; hi<18; ++hi)
         }
         else
         {
-            const lie = SURF_PHYS[g.s][3];
+            const lie = lieMul(clubI);   // the game's rule, sand penalty included
             const carry = CLUBS[clubI][1]*lie;
             let td = Math.hypot(tgt.x-ball.x, tgt.z-ball.z);
             // head/tail from the same drift, tail weighted .65 (mirrors botSwing)
@@ -197,6 +202,7 @@ for (let hi=0; hi<18; ++hi)
         if (!ballEvent) ballEvent = 'STUCK';
         const g2 = groundAt(ball.x, ball.z);
         log.push(\`\${CLUBS[clubI][0]} d\${d|0} -> \${EV_NAMES[ballEvent] || ballEvent} \${SURF_NAMES[g2.s]} d\${ballToPin()|0}\`);
+        if (treeHit) { log[log.length-1] += '   TREE'; treeHit = 0; }   // latch, read, clear
         if (shot==0 && (g2.s==SURF_FAIRWAY||g2.s==SURF_GREEN) && hole.par>3) stats.fairwayHits++;
         if (strokes == hole.par-2 && g2.s==SURF_GREEN) stats.girs++;
         const ev = ballEvent; ballEvent = 0;

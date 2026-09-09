@@ -37,7 +37,7 @@ const CLASSIC_HOLES =
     // front: Meadow - wide, flat, learn the game
     [4, .90, 50,   0, 1,  0, .5, .3],   // the opener: widest fairway on the course
     [3, .80,  0,   0, 1,  0, .6, .5],   // short par 3
-    [5, .68, 40,  .5, 1,  1, .7, .4],   // reachable par 5 with water
+    [5, .72, 40,  .5, 1,  1, .7, .4],   // reachable par 5 with water
     [4,1.00, 36,   2, 2,  0, .9, .5],   // S-bend par 4
     [3,1.30,  0,   0, 2,  0, .6, .5],   // MONSTER par 3: 215yd, a wood into the green
     [4,1.00, 36, 1.0, 2,  0,  1, .5],
@@ -54,7 +54,7 @@ const CLASSIC_HOLES =
     [5,1.05, 30,  2.2, 2, .9,1.0,  .8],  // hairpin par 5 (see dogleg note)
     [3,1.10,  0,   0,  4, .5, .5,  1],  // bunkered par 3 over broken ground
     [4,1.10, 24,   1,  2, .5,.7, 1],  // NARROWEST fairway on the course
-    [5,1.10, 28,   2,  2, .9,1.2,1.2],
+    [5,1.10, 28,   2,  2, .9,1,1.2],
 ];
 
 let hole;          // current generated hole

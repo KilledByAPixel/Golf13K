@@ -244,13 +244,16 @@ function solvePutt()
 
 function botSwing()
 {
-    const d = ballToPin(), lie = lieMul();
+    const d = ballToPin();
     // STUCK ESCAPE: under 15yd gained means pinned against a hill face or a
     // trunk the club's arc cannot clear, so club up to the SW (highest loft)
     // and pop over. 15yd is under any real swing (the weakest full club from
     // sand carries ~20), so it only fires on a wall.
     if (clubI != CLUB_PUTTER && Math.hypot(ball.x-botLastX, ball.z-botLastZ) < 15)
         clubI = CLUB_PUTTER-1;
+    // AFTER the club is settled: the lie depends on it (sand costs a
+    // non-wedge more), so reading it earlier reads it for the wrong club.
+    const lie = lieMul();
     // WORK THE SHOT OUT FIRST, then line up, then swing. Everything from
     // here to the line-up gate is read-only, so it can safely run on every
     // frame of the wait; nothing below the gate may be.

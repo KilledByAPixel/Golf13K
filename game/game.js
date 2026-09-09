@@ -63,10 +63,6 @@ function aimDefault()
 }
 
 const SPIN_NAMES = ['BACKSPIN', 'NO SPIN', 'TOPSPIN']; // indexed by spin+1
-// What the lie costs this club, decided in ONE place: targetMax and launchBall
-// both read it, so the meter promises what the ball delivers. In sand a wedge
-// skids where an iron digs; PW (8) and SW (9) are the wedges, hence `clubI < 8`.
-const lieMul = ()=> SURF_PHYS[ballGround().s][3] * (ballGround().s == SURF_BUNKER && clubI < 8 ? .3 : 1);
 
 ///////////////////////////////////////////////////////////////////////////////
 // THE TARGET. The meter is scaled to it - the bar's top IS shotTarget yards -
