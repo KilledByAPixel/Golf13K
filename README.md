@@ -8,7 +8,7 @@ Sunshine is where rainbows and unicorns meet, so I made a game celebrating the s
 
 Created by Frank Force for JS13k 2026
 
-![LittleJS Screenshot](cover.png)
+![Sunshine Golf Classic](cover.png)
 
 ## 🕹️ Controls
 

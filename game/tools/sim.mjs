@@ -55,6 +55,13 @@ const rnd=(a=1,b=0)=>b+Math.random()*(a-b);
 // Dev only, so the ~55 trial rolls a putt costs are free.
 const PUTT_PAST = .9;   // yards past the cup a solved putt should finish
 const PUTT_TRIES = 4;   // pace+line rounds; stops early the moment one drops
+// HUMAN ERROR on the solved putt. The solver reads the break exactly, so
+// without this the bot holes nearly everything it can reach. AIM error is
+// ANGULAR, which is the right shape - the lateral miss grows with the length
+// of the putt, so a tap-in still drops and a long one often does not. PACE
+// error is RELATIVE, because misjudging pace is proportional too.
+const PUTT_AIM_ERR = .05;    // radians either way
+const PUTT_PACE_ERR = .05;   // fraction of the distance either way
 
 // Roll one trial putt. Reports the closest the SWEPT path comes to the cup, the
 // signed sideways miss there (+ = passed right of it), how far past the cup it
@@ -164,7 +171,8 @@ for (let hi=0; hi<18; ++hi)
             ++putts;
             // pace and line from trial rolls (mirrors botSwing's solvePutt)
             const sp = solvePutt();
-            launchPutt(sp.dist, sp.dir + rnd(.012,-.012));
+            launchPutt(sp.dist*(1 + rnd(PUTT_PACE_ERR, -PUTT_PACE_ERR)),
+                sp.dir + rnd(PUTT_AIM_ERR, -PUTT_AIM_ERR));
         }
         else
         {
