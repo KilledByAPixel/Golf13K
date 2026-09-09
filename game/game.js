@@ -330,7 +330,7 @@ function menuPick(b)
 // regardless, and the bot cuts it at 30 frames.
 const INTRO_T = 400;
 // max intro-camera DESCENT, yards per fixed update (9yd/s); rising is unlimited
-const INTRO_FALL = .15;
+const INTRO_SMOOTH = .9;
 
 function updateIntro()
 {
@@ -698,21 +698,23 @@ function gameUpdatePost()
         const e = smoothStep(stateTime/INTRO_T);
         const a = pathPointAt(hole.len*(1-e) - 20);
         const w = clamp((e-.7)/.3);
-        // The descent cap chains from the previous UPDATE's camY, so read it
-        // BEFORE setSwingCam overwrites it. Not on entry: a new hole is a
-        // deliberate cut and starts AT the hover height. -1e9 opts out by
-        // LOSING the Math.max below; +1e9 would put the camera a billion yards up.
-        const y0 = stateTime > 1 ? camY : -1e9;
+        // The smoothing chains from the previous UPDATE's camY, so read it
+        // BEFORE setSwingCam overwrites it. Weight 0 on entry: a new hole is a
+        // deliberate cut and starts AT the hover height instead of easing in
+        // from whatever pose the previous state left behind.
+        const y0 = camY, sm = stateTime > 1 ? INTRO_SMOOTH : 0;
         setSwingCam(aimYaw);
         camX = lerp(a.x, camX, w);
         camZ = lerp(a.z, camZ, w);
         // heightAt, NOT groundAt: the bunker's -.5 scoop is a SURFACE step that
         // jumps the camera where the path crosses greenside sand
         camY = lerp(heightAt(a.x, a.z) + 11 - e*5, camY, w);
-        // FLOAT DOWN, CLAMP UP: descent capped at INTRO_FALL, rising instant, and
-        // the ground under the camera a hard floor (the end blend can cut a
-        // dogleg under a hill)
-        camY = Math.max(camY, y0 - INTRO_FALL, heightAt(camX, camZ) + 2);
+        // ONE POLE LOW PASS on the height, SYMMETRIC: closes 1-INTRO_SMOOTH of
+        // the gap to the target per update in BOTH directions, so a rise and a
+        // hollow each ease instead of stepping the vertical speed. KNOB: higher
+        // is smoother and laggier. The ground under the camera stays a hard
+        // floor (the end blend can cut a dogleg under a hill).
+        camY = Math.max(lerp(camY, y0, sm), heightAt(camX, camZ) + 2);
         camYaw = lerp(Math.atan2(hole.pin.x-camX, hole.pin.z-camZ), camYaw, w);
         camPitch = lerp(.3 - e*.2, camPitch, w);
     }
