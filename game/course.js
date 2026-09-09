@@ -36,7 +36,7 @@ const CLASSIC_HOLES =
 
     // front: Meadow - wide, flat, learn the game
     [4, .90, 50,   0, 1,  0, .5, .3],   // the opener: widest fairway on the course
-    [3, .80,  0,   0, 1,  0, .6, .3],   // short par 3
+    [3, .80,  0,   0, 1,  0, .6, .5],   // short par 3
     [5, .68, 40,  .5, 1,  1, .7, .4],   // reachable par 5 with water
     [4,1.00, 36,   2, 2,  0, .9, .5],   // S-bend par 4
     [3,1.30,  0,   0, 2,  0, .6, .5],   // MONSTER par 3: 215yd, a wood into the green
@@ -49,9 +49,9 @@ const CLASSIC_HOLES =
     [5,1.00, 36,   2, 2, .7,  1, .6],   // S par 5
     [4, .6, 30,   .9, 1,  1, .7, .3],   // island par 4 with bend, driver over the lake, or lay up and wedge
     // back: Cliffs - narrow, hilly, mean
-    [4,1.05, 30,   .5, 3, .3,1.2,1.1],  // the tree in the fairway
-    [4,1.10, 28,   -1, 0,  .6,1.2,1.2],  // the HILLS are the hazard: no sand, some water
-    [5,1.05, 30,  2.2, 2, .5,1.0,  .8],  // hairpin par 5 (see dogleg note)
+    [4,1.05, 30,   .5, 3, .5,1.2,1.1],  // the tree in the fairway
+    [4,1.10, 28,   -1, 0,  0,1.2,1.3],  // the HILLS are the hazard: no sand, no water
+    [5,1.05, 30,  2.2, 2, .9,1.0,  .8],  // hairpin par 5 (see dogleg note)
     [3,1.10,  0,   0,  4, .5, .5,  1],  // bunkered par 3 over broken ground
     [4,1.10, 24,   1,  2, .5,.7, 1],  // NARROWEST fairway on the course
     [5,1.10, 28,   2,  2, .9,1.2,1.2],
@@ -127,7 +127,7 @@ const ellipseDist = (x, z, e)=> Math.hypot((x-e.x)/e.rx, (z-e.z)/e.rz);
 // raw terrain height, before feature flattening
 function heightRaw(x, z)
 {
-    return (noise2(x*.017+9, z*.017)-.5)*24*hole.hills
+    return (noise2(x*.017+9, z*.017)-.5)*20*hole.hills
          + (noise2(x*.04, z*.04+7)-.5)*6*hole.hills;
 }
 
@@ -442,7 +442,7 @@ function genHole(courseSeed, index, row)
     if (isHardTreeHole)
     {
         const p = pathPointAt(len*.28);
-        addTree(p.x, p.z, 4, 0);
+        addTree(p.x, p.z, 5, 0);
     }
     // Everything the ball can hit - the even kinds. t.y is the CANOPY CENTRE,
     // not the ground: baking the trunk height in lets flyStep test one sphere
