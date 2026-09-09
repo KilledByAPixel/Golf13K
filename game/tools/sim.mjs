@@ -39,6 +39,83 @@ const src =
     + `
 // ---- bot round ----
 const rnd=(a=1,b=0)=>b+Math.random()*(a-b);
+///////////////////////////////////////////////////////////////////////////////
+// THE BOT'S PUTT: pace and line solved against the real roll integrator.
+//
+// rollStep already models the break, the friction of whatever the ball sits on
+// and the cup's lip, so the bot needs no slope model of its own - it rolls
+// TRIAL putts and reads what happened. Two searches, nested, because neither
+// converges alone: the pace that reaches the hole depends on the line (a
+// breaking putt travels further to get there) and the line that holes depends
+// on the pace (a firm putt breaks less).
+//   PACE  bisection on distance against the along-aim overshoot. That is
+//         monotonic in distance, so bisection cannot be thrown the way a
+//         secant is by a downhill putt that runs away.
+//   LINE  swing the aim by the sideways miss measured at closest approach.
+// Dev only, so the ~55 trial rolls a putt costs are free.
+const PUTT_PAST = .9;   // yards past the cup a solved putt should finish
+const PUTT_TRIES = 4;   // pace+line rounds; stops early the moment one drops
+
+// Roll one trial putt. Reports the closest the SWEPT path comes to the cup, the
+// signed sideways miss there (+ = passed right of it), how far past the cup it
+// finished along the aim, and whether it would have dropped.
+function puttTrial(dist, dir)
+{
+    const px = hole.pin.x, pz = hole.pin.z;
+    const sn = Math.sin(dir), cs = Math.cos(dir);
+    const b = puttVel({x: ball.x, y: ball.y, z: ball.z}, dist, dir);
+    let best = 1e9, lat = 0, holed = 0;
+    rollRest = 0;
+    for (let i = 0; i < 900 && !rollRest; ++i)
+    {
+        const x0 = b.x, z0 = b.z, sp = rollStep(b);
+        // the STEP'S SEGMENT, not its end point: a rolling step covers a
+        // quarter of a yard and the cup is .18yd across, so testing positions
+        // alone rolls straight through the hole - the same reason cupHit sweeps
+        const cd = pathDist(b, x0, z0, px, pz);
+        if (cd < best)
+        {
+            best = cd;
+            lat = (b.x-px)*cs - (b.z-pz)*sn;
+        }
+        if (cd < HOLE_R && sp < CUP_SPEED)
+            holed = 1;
+    }
+    return {best, lat, holed, past: (b.x-px)*sn + (b.z-pz)*cs};
+}
+
+// Pace and line together; returns {dist, dir} to hand straight to launchPutt.
+function solvePutt()
+{
+    const px = hole.pin.x, pz = hole.pin.z;
+    const d = Math.hypot(px-ball.x, pz-ball.z);
+    let dir = Math.atan2(px-ball.x, pz-ball.z);
+    let bestT = 0, bestDist = d, bestDir = dir;
+    for (let n = 0; n < PUTT_TRIES; ++n)
+    {
+        // PACE: the shortest putt that still finishes PUTT_PAST beyond the cup
+        let lo = .3, hi = PUTT_MAX;
+        for (let k = 0; k < 10; ++k)
+        {
+            const m = (lo + hi)/2;
+            if (puttTrial(m, dir).past < PUTT_PAST) lo = m; else hi = m;
+        }
+        const dist = (lo + hi)/2, t = puttTrial(dist, dir);
+        // keep the closest pass seen, so a putt that never drops still leaves
+        // the shortest tap-in rather than whatever the last iteration tried
+        if (!bestT || t.best < bestT.best)
+        {
+            bestT = t; bestDist = dist; bestDir = dir;
+        }
+        if (t.holed)
+            break;
+        // LINE: the path passed that far to one side, so swing the aim back by
+        // that much across the length of the putt. Break is not linear in the
+        // aim, which is why this iterates instead of solving once.
+        dir -= Math.atan2(t.lat, Math.max(1, d));
+    }
+    return {dist: bestDist, dir: bestDir};
+}
 forestMul = ${treesArg || 1};
 remixMode = ${remix ? 1 : 0};   // course.js reads it; game.js is not loaded here
 const rows = genCourse(${seedArg}, ${remix ? 1 : 0});
@@ -85,9 +162,9 @@ for (let hi=0; hi<18; ++hi)
         if (clubI == CLUB_PUTTER)
         {
             ++putts;
-            // d*PUTT_OVER plus the climb to the hole (mirrors botSwing)
-            launchPutt(d*PUTT_OVER + (heightAt(hole.pin.x, hole.pin.z) - ball.y)*3.5,
-                aim + rnd(.012,-.012));
+            // pace and line from trial rolls (mirrors botSwing's solvePutt)
+            const sp = solvePutt();
+            launchPutt(sp.dist, sp.dir + rnd(.012,-.012));
         }
         else
         {
