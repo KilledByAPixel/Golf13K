@@ -10,6 +10,8 @@ local
 # generated outputs
 game/build
 game/*.zip
+# ...except the published release zip, which IS tracked
+!game/game.zip
 game/shots
 game/shots-prev
 game/artifact.html
