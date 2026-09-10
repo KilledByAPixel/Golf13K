@@ -414,7 +414,7 @@ function renderScorecard()
             const s = scores[h], p = courseRows[h][0];
             txt(h+1, x, y, T*.03, 'center', h == holeIndex ? GOLD : WHITE);
             txt('PAR '+p, x, y+T*.035, T*.017, 'center', '#ccc');
-            txt(s ?? '-', x, y+T*.1, T*.04, 'center', s < p ? GOLD : s > p ? PIN_COLOR : WHITE);
+            txt(s ?? '-', x, y+T*.1, T*.04, 'center', s < p ? GOLD : s > p ? '#f21' : WHITE);
         }
     }
     const n = over ? 18 : holeIndex+1;
