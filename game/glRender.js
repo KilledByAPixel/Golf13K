@@ -36,6 +36,11 @@ let glBase = 0, glStaticCount = 0, glStaticBuffer, glDynamicBuffer;
 // Set per hole in buildWorld, which runs before anything is pushed; the
 // headless unit harness supplies its own glLightDir, never building a world.
 let SUN_E = .5, SUN_A = -.5, glLightDir;
+// baked lighting: colour x (ambient + light x max(0, N.L)), see packColor.
+// Ambient is over half the full-sun total, so hillsides shade gently and the
+// relief comes from the baked shadows and the surface colours.
+const glLightColor = [.65, .65, .6], glAmbient = [.5, .5, .55];
+
 ///////////////////////////////////////////////////////////////////////////////
 // THE WATER: a vertex-shader snippet spliced into the terrain shader.
 // Lakes are marked by an alpha of 254/255, a band no other geometry uses.
@@ -43,11 +48,6 @@ let SUN_E = .5, SUN_A = -.5, glLightDir;
 const PRISM = 1;    // 1 = rainbow foam instead of white (+18 bytes)
 const SPARKLE = 0;  // twinkling glints on the water (Closure folds the 0 out)
 const SPEC = 1;     // sun specular on the water - the only camera-aware light
-
-// A second species of wildflower: this fraction take a big hue offset from
-// the hole's pal.flower instead of the small jitter. SECOND_MIX = 0 removes
-// it; 150 degrees is near-complementary, 30-60 a shade of the same family.
-const SECOND_MIX = .1, SECOND_HUE = 90;
 const WATER_GLSL =
 // THE WAVES TRAVEL WITH THE WIND: positions project into the wind frame, U
 // along u.xy (the wind direction), V across it. The MAIN wave rides the wind
@@ -90,8 +90,6 @@ const WATER_GLSL =
     +(SPARKLE ?
      'float h=fract(sin(v.x*127.1+v.z*311.7)*43758.5);'
     +'d.xyz+=step(.8,h)*pow(max(sin(h*63.+t*5.),0.),100.)*max(cos(a),0.)*.7;' : '');
-const glLightColor = [.65, .65, .6], glAmbient = [.5, .5, .55];
-//const glLightColor = [1, 1, 1], glAmbient = [0, 0, 0];
 
 // called by engine.js during engineInit, before the overlay canvas is
 // appended - so the layering lands glCanvas < overlayCanvas
@@ -422,10 +420,9 @@ function pushTerrain()
         if (c.a == 1) C[j][i] = c;
     }
     // Baked tree shadows, cast away from the sun but floored at
-    // SHADOW_MIN_E so a low sun cannot smear them. Scans every vertex, not
-    // just the fine corridor cells, so shadows also fall on the coarse
-    // periphery ring; coarse spacing isn't a fixed MESH_CELL step so the
-    // old index-hop math can't reach it.
+    // SHADOW_MIN_E so a low sun cannot smear them. Scans every vertex by
+    // COORDINATE rather than hopping grid indices, because the coarse
+    // periphery ring is not a fixed MESH_CELL step - so shadows fall there too.
     const sd = skyDir(SUN_A, Math.max(SUN_E, SHADOW_MIN_E)), sl = 1.2/sd.y;
     for (const t of hole.trees)
     {
@@ -468,11 +465,9 @@ function pushTerrain()
 // 1 = a normal per VERTEX, so the light runs across each quad instead of
 // stepping at its edges and the canopies read rounder and more natural.
 // 0 = one normal per FACE, the faceted low-poly look.
-// It costs 28 bytes and NOTHING ELSE: the geometry is identical either way
-// (356,012 static verts on hole 13 both ways), so there is no per-frame cost
-// and no vertex-ceiling impact. The world build is ~19% slower (640 -> 760ms
-// under software rendering, so nearer 40ms on real hardware), once per hole
-// and hidden by the flyback.
+// It costs 28 bytes and nothing else: the geometry is identical either way,
+// so there is no per-frame cost and no vertex-ceiling impact. The world build
+// is ~19% slower, once per hole and hidden by the flyback.
 const SMOOTH_LATHE = 1;
 
 function pushLathe(pos, profile, sides, color, rot=0, roll=0)
@@ -515,6 +510,11 @@ function pushLathe(pos, profile, sides, color, rot=0, roll=0)
     }
 }
 
+// A second species of wildflower: this share of the flowers on a wooded hole
+// take a big hue offset (.3 of the wheel) from the hole's own flower hue.
+// SECOND_MIX = 0 removes it.
+const SECOND_MIX = .1;
+
 // t.k: 0 = full tree, 1 = far tree (one canopy), 2 = bush, 3 = wildflower
 function pushTreeGL(t)
 {
@@ -530,10 +530,11 @@ function pushTreeGL(t)
     const R = new RandomGenerator(t.x*9+t.z*1e4);
     const rot = R.float(1e3);
     const gh = meshHeightAt(t.x, t.z), pal = hole.pal;
-    // pal.flower plus a small jitter, so a meadow reads as one species with
-    // variation - per-flower hues read as confetti. One hole gets the confetti
-    // on purpose (rainbowFlowers), being the treeless links.
-    const leaf = t.k == 3 ? 
+    // FLOWERS take one hue per hole (index*.37 walks the wheel over the
+    // round), so a meadow reads as one species rather than confetti. The
+    // TREELESS hole is the exception: its hue runs along the hole, a rainbow
+    // meadow on purpose. Trees jitter around the palette's tree colour.
+    const leaf = t.k == 3 ?
         hsl(hole.treeDen ? hole.index*.37 + R.bool(SECOND_MIX) * .3 : t.z/99, 1, R.float(.6,1))
         : hslCol(pal.tree, R.float(20), R.float(40));
     // A BUSH IS JUST A LOW TREE with no trunk - same canopy, same collision
@@ -705,20 +706,6 @@ function pushLandingRingGL()
         }
         glPushVerts(pts, packColor(col, null));
     }
-    // Slim pulsing beacon so the spot reads at grazing angles (showBeacon = 0
-    // folds it out). It LEANS TOWARD hole.wind.a, the way the ball is pushed
-    // (flyStep's air velocity is (sin(wind.a), cos(wind.a))*wv, and the HUD
-    // arrow points the same way), and PIVOTS AT THE GROUND - the profile runs
-    // 0..2bh from gh - since the base marks the spot and leaning about the
-    // middle walks it upwind.
-    const showBeacon = 0;
-    if (showBeacon)
-    {
-        const bh = Math.max(2, d*.03)*(1 + Math.sin(time*4)*.1)*hole.wind.s*.2;
-        const br = Math.max(.4, d*.006);
-        pushLathe(vec3(predLand.x, gh, predLand.z), [[0,0],[br,bh],[0,2*bh]], 4,
-            hsl(.3 - hole.wind.s/35, 1, .6), hole.wind.a, 1.3);
-    }
     glEnableFog = 1;
 }
 
@@ -860,18 +847,18 @@ function pushSkyGL()
     // the arms meet. KNOBS: the angular length (1), the thinness (.05), the
     // .2 alpha, and the count/spacing in the loop.
     for (let i=6; i--;)
-    DEV_THUMBNAIL ? 
-        pushSkyDisc(sun, 2, sunCol.scale(1, .4), .03, i*Math.PI/6) :
-        pushSkyDisc(sun, 1, sunCol.scale(1, .2), .05, i*Math.PI/6);
+        DEV_THUMBNAIL ?
+            pushSkyDisc(sun, 2, sunCol.scale(1, .4), .03, i*Math.PI/6) :
+            pushSkyDisc(sun, 1, sunCol.scale(1, .2), .05, i*Math.PI/6);
     // sun: soft disc + wide faint halo
     pushSkyDisc(sun, .1, sunCol);
     pushSkyDisc(sun, .2, sunCol.scale(1, .7));
     pushSkyDisc(sun, .3, sunCol.scale(1, .5));
-    
+
     // clouds: rows of overlapping soft puffs parked at headings, drifting
+    // with the wind (the drift rate scales with wind.s)
     for (let i=7; i--;)
     for (let j=5+i%3; j--;)
-        //pushSkyDisc(skyDir(i + .01*time + j*.1, .3 + (i%3)*.3 + Math.sin(j*j+i+.01*time)*.05),
         pushSkyDisc(skyDir(i + (hole.wind.s+2)*.005*time + j*.1, .3 + (i%3)*.3 + Math.sin(j*j+i+(hole.wind.s+2)*.005*time)*.05),
             .2 + Math.sin(j**3)*.05, rgb(1, 1, 1, .4+Math.sin(i+j+time*.1)/4), .5);
     glEnableFog = 1;
@@ -898,8 +885,8 @@ function pushFlareGL()
     glEnableFog = 1;
 }
 
-// (showColl and pushCollGL - the C-key collision volumes - live in
-// debugGame.js; the call site below is the only thing left here)
+// (pushCollGL, the C-key collision volumes, lives in debugGame.js; only its
+// call site in renderViewGL is here)
 
 // Drop trees close to the ball: hole.near is BOTH the drawn set and the
 // collision set, so what you see is what you hit. Called once per shot from
@@ -913,13 +900,14 @@ function hideTrees()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// the frame
 
 // full 3D scene: the static world in one call, the sky, then the dynamic batch
 function renderViewGL()
 {
     glPreRender();
 
-    // disable blend for ground to fix cracks
+    // option: draw the world with blending off (if seams ever show)
     const DISABLE_BLEND = 0;
     DISABLE_BLEND && glContext.disable(gl_BLEND);
     glSetBuffer(glStaticBuffer);

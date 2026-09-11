@@ -34,8 +34,10 @@
 // 1 = locked title layout for grabbing the js13k thumbnail. It is read
 // OUTSIDE a debug gate in hud.js, so leaving it at 1 changes the RELEASE:
 // Closure folds the title on and deletes the menu, HUD and scorecard.
-const AUTO_CHANGE_LEVEL = 0;
 const DEV_THUMBNAIL = 0;
+// 1 = attract loop for capture: the map view shows the title and steps to
+// the next hole every 2 seconds
+const AUTO_CHANGE_LEVEL = 0;
 const THROW_V = 45; // yd/s the free cam's B key throws the ball at
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -146,10 +148,6 @@ function puttDrop()
 
 ///////////////////////////////////////////////////////////////////////////////
 // auto-play bot: plays reasonable shots so full rounds can run headless
-
-// Leaving the free cam by ANY route (F, or M opening the map) forgets the
-// saved pose, so a reload does not return to it. Only writes when it was on.
-const exitFreeCam = ()=> { if (freeCam) { freeCam = 0; delete localStorage['sg_cam']; } }
 
 // where the bot's last swing was taken from: its stuck detector
 let botLastX = 9e9, botLastZ = 9e9;
@@ -291,12 +289,11 @@ function botSwing()
         let td = Math.hypot(tgt.x-ball.x, tgt.z-ball.z);
         // HEAD/TAIL WIND FROM THE SAME DRIFT: a headwind costs about what a
         // crosswind of the same speed pushes sideways, so no second model is
-        // needed. The flat 1% this replaces left the bot 7-15% short into a
-        // strong wind, which is why it could not carry the island. Tailwind
-        // is weighted .65: the gain downwind is smaller than the loss into
-        // it, because a slowed ball hangs longer. MEASURED carry/asked over
-        // the bag at wind 5 and 8 both ways - rms 6.7% worst 15% before,
-        // rms 2.4% worst 7% after.
+        // needed (a flat percentage per unit leaves the bot 7-15% short into
+        // a strong wind and it cannot carry the island). Tailwind is weighted
+        // .65: the gain downwind is smaller than the loss into it, because a
+        // slowed ball hangs longer. MEASURED carry/asked over the bag at wind
+        // 5 and 8 both ways: rms 2.4%, worst 7%.
         const along = Math.cos(hole.wind.a - aimYaw);
         td -= along*drift*(along < 0 ? 1 : .65);
         // land it SHORT of a flag: power sets the CARRY, and a carry aimed at
@@ -404,9 +401,9 @@ function devHud(midX, T)
     }
     if (puttMode)
         txt('PUTT MODE - HOLING OUT RE-DROPS · P EXITS', midX, T-T*.04, T*.024);
-    // THE PAD'S MENU HIGHLIGHT, drawn BEFORE the title menu: `panel` fills
-    // #000a, so a bright rounded rect UNDER it is a solid outline where it
-    // overhangs and a tint where the panel covers it. No hook in hud.js.
+    // THE PAD'S MENU HIGHLIGHT, drawn BEFORE the title menu: the button is
+    // filled #000a, so a bright rounded rect UNDER it is a solid outline where
+    // it overhangs and a tint where the button covers it. No hook in hud.js.
     if (padOn() && state == ST_TITLE && !DEV_THUMBNAIL)
     {
         const r = menuRect(padMenu), p = r.h*.08, c = overlayContext;
@@ -424,7 +421,11 @@ function devHud(midX, T)
 ///////////////////////////////////////////////////////////////////////////////
 // debug keys and the free cam. Returns 1 when the frame is swallowed.
 
-const levelChangeTimer = new Timer;
+// Leaving the free cam by ANY route (F, or M opening the map) forgets the
+// saved pose, so a reload does not return to it. Only writes when it was on.
+const exitFreeCam = ()=> { if (freeCam) { freeCam = 0; delete localStorage['sg_cam']; } }
+
+const levelChangeTimer = new Timer; // AUTO_CHANGE_LEVEL's hole clock
 
 function devUpdate()
 {
@@ -438,7 +439,6 @@ function devUpdate()
         exitFreeCam();
         stateTime = 0; // the intro replays when the map closes
     }
-
 
     let skip = cheatsOn ? (keyWasPressed('BracketRight')?1:0) - (keyWasPressed('BracketLeft')?1:0) : 0;
     if (AUTO_CHANGE_LEVEL && !levelChangeTimer.active())
@@ -693,8 +693,6 @@ function devInit()
                 [ ] walks off it.
   TELEMETRY()   every shot, tree strike and hole of this session, as JSON.
                 TELEMETRY(1) saves it to a file to hand over.`);
-    // free cam mouse look: click locks the pointer, movement turns the
-    // camera (addEventListener - the engine owns window.onmousemove)
     // FIREFOX EATS PRINTABLE KEYS. With "search for text when you start
     // typing" on, the first letter pressed opens the quick-find bar and every
     // key after it goes there instead of to the game - so F, T, R, P and the
@@ -705,6 +703,8 @@ function devInit()
     addEventListener('keydown', (e)=>
         e.key.length == 1 && !e.ctrlKey && !e.altKey && !e.metaKey && e.preventDefault());
 
+    // free cam mouse look: click locks the pointer, movement turns the
+    // camera (addEventListener - the engine owns window.onmousemove)
     addEventListener('mousemove', (e)=>
     {
         if (freeCam && document.pointerLockElement)
@@ -782,14 +782,15 @@ function devInit()
         par: hole && hole.par, ball: {x:ball.x, y:ball.y, z:ball.z},
         cam: {x:camX, y:camY, z:camZ, yaw:camYaw, pitch:camPitch},
         surf: hole && SURF_NAMES[groundAt(ball.x, ball.z).s]});
-    // SKIP(): toggle jumping straight into the game on reload. Held in
-    // localStorage so it outlives edits and rebuilds; SKIP(1)/SKIP(0) set it.
+    // CHEATS(): toggle the debug keys; CHEATS(1)/CHEATS(0) set it outright
     window['CHEATS'] = (v = !cheatsOn)=>
     {
         cheatsOn = v;
         v ? localStorage['sg_cheats'] = 1 : delete localStorage['sg_cheats'];
         return v ? 'cheats on: debug keys live' : 'cheats off: debug keys ignored';
     };
+    // SKIP(): toggle jumping straight into the game on reload. Held in
+    // localStorage so it outlives edits and rebuilds; SKIP(1)/SKIP(0) set it.
     window['SKIP'] = (v = !localStorage['sg_skip'])=>
     {
         v ? localStorage['sg_skip'] = 1 : delete localStorage['sg_skip'];

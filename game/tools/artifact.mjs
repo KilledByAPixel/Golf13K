@@ -43,7 +43,7 @@ for (const [flag, setter] of [
 src = 'let LSAFE={}; try { LSAFE = window.localStorage || {}; } catch(e) {}\n'
     + src.replaceAll('localStorage', 'LSAFE');
 
-const html = '<!DOCTYPE html><html><head><title>RAINBOW GOLF TOUR</title>'
+const html = '<!DOCTYPE html><html><head><title>SUNSHINE GOLF CLASSIC</title>'
     + '<meta charset=utf-8>'
     + '<meta name=viewport content="width=device-width,initial-scale=1">'
     + '<style>body{margin:0;background:#000}</style></head><body>'

@@ -1,8 +1,8 @@
 'use strict';
 
-/*  SUNSHINE GOLF CLASSIC - zzfx sound effects
-    Preset-derived shapes (noise thumps for impacts, coin/powerup arps for
-    rewards), never ear-tuned. The first parameter is the volume. */
+/*  SUNSHINE GOLF CLASSIC - sound effects and music
+    A trimmed ZzFX generator and player, the game's sounds as zzfx arrays
+    (the first parameter is the volume), and the procedural music. */
 
 // OUR OWN ZzFX generator, so the dev build runs exactly the code that ships.
 // The parameter POSITIONS are ZzFX's, so the arrays below are ordinary zzfx
@@ -135,31 +135,30 @@ function sfxBounce(surf, speed)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// PROCEDURAL MUSIC. No song data, only a beat counter: every note is a
-// random WALK over a major pentatonic, which has no semitone clashes, so
-// any two notes it can pick sound intentional together.
-// Voices enter in turn so the piece BUILDS - drums first, bass after 4 bars,
-// melody after 8. The chord walks a step every 32 beats and is pulled home
-// every 256, so it wanders without drifting away.
+// PROCEDURAL MUSIC. No song data, only a beat counter: the bass and lead
+// step through small tables of chord tones, so any two notes that sound
+// together sound intentional. The chord root walks a step every 32 beats
+// and is pulled home every 128, so it wanders without drifting away.
+// The bass rests during the flyback and the lead plays only on the title.
 // Ticks only in the quiet states; game.js gates the call, so the beat
 // counter stops during a swing. MUSIC = 0 folds it all out of the build.
 const MUSIC = 1;
 const snd_kick = MUSIC && new Sfx([,,99,,,.02,,,,,,,,2]);
 const snd_bass = MUSIC && new Sfx([.5,0,82,,,.05,,.5,,,,,,,,,,.1,.1]);
 const snd_lead = MUSIC && new Sfx([.3,0,164,,,,,9,,,,,,,,,,.1,.3]);
-const BASS_SCALE = [0,5,7,5]; // pentatonic
-const SCALE = [0,7,4,12,11,12,7,4];   // major
+const BASS_SCALE = [0,5,7,5];         // bass walk, semitones above the chord root
+const SCALE = [0,7,4,12,11,12,7,4];   // lead walk, semitones above the bass note
 let beat = -1, bassNote=0, leadNote=0, chord=0;
-const musicTick = 8;
+const musicTick = 8; // frames per beat
 
 function updateMusic()
 {
     if (frame%musicTick)
         return;
-        
+
     ++beat;
 
-    // a new chord every 4 bars, home again every 32
+    // a new chord every 32 beats, home again every 128
     if (beat%32 == 0)
         bassNote = chord = beat%128 ? chord + randSign() : 0;
 
@@ -168,7 +167,7 @@ function updateMusic()
         snd_bounce.play(((beat>>1)%4 - 2 ? .2 : .4) - rand(.1));
     if (beat%4 == 0)
         snd_kick.play(((beat>>1)%4? 1 : .5) - rand(.1));
-        
+
     // bass: mostly on the beat, occasionally off it
     if (state != ST_INTRO)
     if (beat%2 == 0 && (beat%8 == 0 || randInt(4)) || !randInt(9))

@@ -76,5 +76,5 @@ http.createServer((req, res) =>
 }).listen(PORT, '127.0.0.1', () =>
 {
     console.log(`Dev server running at http://localhost:${PORT}`);
-    console.log(`RAINBOW GOLF TOUR: http://localhost:${PORT}/`);
+    console.log(`SUNSHINE GOLF CLASSIC: http://localhost:${PORT}/`);
 });

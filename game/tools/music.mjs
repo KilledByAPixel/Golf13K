@@ -9,7 +9,8 @@
 // a rewrite of the music cannot leave this silently reporting the old one.
 // usage: npm run music
 import fs from 'node:fs';
-const R = 'C:/dev/GitHub/JS13K/golf/';
+import { fileURLToPath } from 'node:url';
+const R = fileURLToPath(new URL('../../', import.meta.url)); // repo root
 const sfxSrc = fs.readFileSync(R + 'game/sfx.js', 'utf8');
 
 // pull the game's own generator out of sfx.js, so this measures what

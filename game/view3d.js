@@ -108,10 +108,7 @@ function groundColor(x, z, g)
     else if (g.s == SURF_GREEN)
     {
         c = pal.green;
-        //dl = (x/5|0)%2*15 + (z/7|0)%2*15;
-        //dl = Math.sin(x/2|0)*15 + Math.sin(z/2)*15;
-        //dl = (Math.hypot(x-hole.pin.x, z-hole.pin.z)/2.6 & 1)*5;
-        dl = -Math.hypot(x-hole.pin.x, z-hole.pin.z);
+        dl = -Math.hypot(x-hole.pin.x, z-hole.pin.z); // darkens away from the cup
     }
     else if (g.s == SURF_BUNKER) c = pal.sand;
     else if (g.s == SURF_WATER)

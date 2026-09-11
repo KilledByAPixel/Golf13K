@@ -30,13 +30,14 @@ const PUTT_MAX = 40;
 // putt. MUST stay above 1: a bar topping out exactly at the cup can only be
 // missed short, since every stroke that is not perfect at the very top falls
 // under it. It also has to keep the cup marker ON THE BAR, since that is only
-// drawn when it fits - at 1.3 the marker sits at 77% of the bar.
-// A CONTOURED GREEN EATS PACE, so the old 1.2 left too many putts dying short.
+// drawn when it fits - at 1.5 the marker sits at 67% of the bar.
+// A CONTOURED GREEN EATS PACE, so a putt dying short is the common miss.
 // MEASURED over every green, putts from 3 to 15yd all round the cup:
 //   1.2   88% reach the hole, 17% run more than 3yd past
-//   1.3   94%                 22%   <- here
+//   1.3   94%                 22%
 //   1.4   97%                 28%
-// Halving the putts that cannot go in is worth the longer ones coming back.
+// Cutting the putts that cannot go in is worth the longer ones coming back;
+// 1.5 sits above the table, tuned by feel.
 const PUTT_OVER = 1.5;
 // How hard a mis-timed second click PUSHES a putt offline. Its own number
 // because push/pull is an ANGLE: the .05 every other club uses is ten yards
@@ -432,9 +433,12 @@ function flyStep(b, curve, wv = hole.wind.s*WIND_V)
     // Canopy sphere plus a trunk cylinder; a strike kills most of the speed.
     // ONLY the real ball collides - the prediction ignores trees, so the ring
     // does not jump as the aim sweeps past one.
-    if (b == ball && treeCool) --treeCool;
-    else if (b == ball)
+    if (b != ball) return;
+    if (treeCool)
     {
+        --treeCool;
+        return;
+    }
     const x0 = b.x - b.vx*DT, z0 = b.z - b.vz*DT;
     for (const t of hole.near)
     {
@@ -468,7 +472,6 @@ function flyStep(b, curve, wv = hole.wind.s*WIND_V)
             treeCool = TREE_COOL;
             break;
         }
-    }
     }
 }
 
@@ -561,7 +564,6 @@ function ballUpdate()
         ball.y = g.h;
         if (hazardEnd(g.s)) return;
         if (cupHit(x0, z0, AIR_HOLE))
-
         {
             // straight in off the flight. No speed limit: a shot arrives far
             // faster than a putt may cross the cup, or an ace could never happen.
@@ -713,11 +715,11 @@ function autoClub()
 // yardage is the distance to it, so none of them can disagree with each other
 // or with the shot. FLOWN IN STILL AIR (the 0 passed to flyStep): reading the
 // wind is the player's job and the arrow is there for it.
-// predHit: the predPath index where the arc first clips a RISING face, or
-// 1e9 for a clear flight. The prediction skims such a face at full speed
-// where the real ball reflects off it and scrubs, so this marks the shots
-// the ring is lying about (measured: a driver into a 60% slope is
-// predicted 138yd and stops at 25).
+// The returned point carries `hit` when the arc clipped a RISING face on the
+// way: the prediction skims such a face at full speed where the real ball
+// reflects off it and scrubs, so `hit` marks the shots the ring is lying
+// about and the line and ring draw it as a warning (measured: a driver into
+// a 60% slope is predicted 138yd and stops at 25).
 let predPath = [];
 function predictLanding(clubI, dir, spin, lieMul, power=1)
 {

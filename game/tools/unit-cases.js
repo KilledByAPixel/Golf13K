@@ -928,10 +928,10 @@ genHole(1113, 0, CLASSIC_HOLES[0]);
     eq(hill.total < flat.total, true,
         'a topspin drive into a hill face finishes short of the same drive on flat ground');
     // A RISING FACE IS A RAMP. The bounce reflects about the ground normal, so
-    // a face sends the ball UP - it used to pop LESS than flat ground (0.01yd
-    // against 1.07 on a 20% face), which is a hill deadening a ball instead of
-    // kicking it. Both bounds matter: under flat means the deadening is back,
-    // and far over means the reflection has run away.
+    // a face must send the ball UP; a flat-plane bounce pops LESS than flat
+    // ground there (0.01yd against 1.07 on a 20% face), a hill deadening a
+    // ball instead of kicking it. Both bounds matter: under flat means the
+    // deadening is back, and far over means the reflection has run away.
     eq(hill.pop > flat.pop, true,
         'and the face kicks the ball UP rather than deadening it');
     eq(hill.pop < flat.pop + 8, true,

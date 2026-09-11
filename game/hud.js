@@ -3,8 +3,8 @@
 /*  SUNSHINE GOLF CLASSIC - the HUD layer
 
     Everything drawn on overlayCanvas in 2D. gameRenderPost composes the
-    frame; renderMeter / renderScorecard / renderConfetti / drawWind are its
-    pieces; panel / fillRect / txt / tri / rainbowText are the primitives.
+    frame; renderMeter / renderScorecard / renderConfetti are its pieces;
+    fillRect / txt / tri / rainbowText are the primitives.
     Nothing here touches GL - the 3D scene is glRender.js and view3d.js.
 
     LOAD ORDER: LAST, after game.js. It owns the engineInit call at the
@@ -15,7 +15,6 @@
 const GOLD = '#fd4';
 const PIN_COLOR = '#f35';
 const FONT = 'impact';
-//const FONT = 'none';
 
 function gameRenderPost()
 {
@@ -91,7 +90,7 @@ function gameRenderPost()
             if (best) txt(relPar(+best), cx, r.y + r.h*.8, fs*.8, 'center', col);
         }
         return;
-    };
+    }
 
     if (state == ST_HOLEOUT && stateTime > CARD_T)
         return renderScorecard(); // (it draws the confetti behind itself)
@@ -135,7 +134,6 @@ function gameRenderPost()
             // hovers above the flag top so the real flag stays visible under it
             const bob = Math.sin(time*3)*T*.006;
             txt('⚑', mx, my - T*.04 + bob, T*.04, 'center', PIN_COLOR);
-            //tri(mx, my + bob-T*.05, T*.01, Math.PI, '#f35', 2, T*.001);
             txt(`${dPin|0}`, mx, my - T*.08 + bob, T*.03);
         }
 
@@ -155,7 +153,7 @@ function gameRenderPost()
     if (state == ST_HOLEOUT)
         renderConfetti();
 
-    // msgText='test message';msgTimer=25;
+    // the banner message (shot verdict, hole result, penalties), fading out
     if (msgTimer > 0)
     {
         const fade = Math.min(1, msgTimer/25);
@@ -305,7 +303,6 @@ const fillRect = (x, y, w, h, col, a, r)=>
         c['roundRect'](-w*.5, -h*.5, w, h, r);
     else
         c.rect(-w*.5, -h*.5, w, h);
-    //c.fillRect(-w*.5, -h*.5, w, h);
     c.fill();
     c.restore();
 }
@@ -376,9 +373,9 @@ function rainbowText(t, x, y, size, style=0)
         // clamp to width of canvas
         const scale = Math.min(1, .9*mainCanvasSize.x / w);
         ctx.strokeStyle = DEV_THUMBNAIL ? '#000' : hsl(0, 0, Math.sin(i/4+style-time*2)**8*.5);
-        ctx.fillStyle = DEV_THUMBNAIL ? 
-        hsl(style*.5+i/9, 1-style, style?.7:.6) :
-        hsl(style*.5+i/9-time/5, 1-style, style? .8+Math.sin(i/4+style-time*2)**8*.2 : .7);
+        ctx.fillStyle = DEV_THUMBNAIL ?
+            hsl(style*.5+i/9, 1-style, style ? .7 : .6) :
+            hsl(style*.5+i/9-time/5, 1-style, style ? .8+Math.sin(i/4+style-time*2)**8*.2 : .7);
         ctx.strokeText(c, px-w*.5*scale, y, cw, w*scale);
         ctx.fillText(c, px-w*.5*scale, y, w*scale);
         px += cw*scale;

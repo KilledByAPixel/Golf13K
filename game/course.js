@@ -6,12 +6,16 @@
     are the single source of truth for gameplay, the 3D view and the map. */
 
 // surface types (priority order handled in surfaceAt)
-// Canopy centre above ground. A bush (k=2) and a flower (k=3) are trees
-// whose trunk is too short to draw - this one number is the whole difference.
-const trunkH = (t)=> t.s*(t.k > 1 ? 1.2 : 3.4);
 const SURF_ROUGH=0, SURF_FAIRWAY=1, SURF_GREEN=2, SURF_TEE=3,
       SURF_BUNKER=4, SURF_WATER=5, SURF_OB=6;
 const SURF_NAMES = ['ROUGH','FAIRWAY','GREEN','TEE','SAND','WATER','OB'];
+
+// Props are all "trees" {x, z, s: size, k: kind}: k 0 = full tree, 1 = far
+// tree (one canopy), 2 = bush, 3 = wildflower. The ODD kinds are scenery the
+// ball never hits. trunkH is the canopy centre above the ground - a bush and
+// a flower are trees whose trunk is too short to draw, and this one number is
+// the whole difference.
+const trunkH = (t)=> t.s*(t.k > 1 ? 1.2 : 3.4);
 
 // Seasons: every colour is [h,s,l] at hole 1 and at hole 18, lerped per
 // hole. The endpoint NUMBERS choose the hue path - the horizon's 378 (= 18)
@@ -59,10 +63,12 @@ const CLASSIC_HOLES =
 
 let hole;          // current generated hole
 let forestMul = 1; // debug knob (?trees=K): scales the periphery forest
-let noiseSeed;  // terrain noise seed for current hole
-let lastAlong;  // distance along path from last distToPath call (for stripes)
-let lastDist;   // and the distance to it (periphery shading)
-let lastWater;  // the lake surfaceAt last returned SURF_WATER for
+let noiseSeed;     // terrain noise seed for the current hole
+let lastAlong;     // distance along the path from the last distToPath call (mow stripes)
+let lastDist;      // and the distance to it (periphery shading)
+let lastWater;     // the lake surfaceAt last returned SURF_WATER for
+// how far the green plateau stands above the raw terrain, and how much of
+// the natural relief it flattens (see heightAt)
 const greenBump = .5, GREEN_FLAT = .5;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -156,11 +162,10 @@ function heightAt(x, z)
     //   .3   48%                                              3.1yd
     //   .5   73%                                              2.7yd  <- here
     //   1    68%, every green a pad                           2.0yd
-    // Half keeps MORE contour than the old flat pad did and still lets a putt
-    // stop. The blend spans gr*2.4, not gr: at gr it is only full at the green's
+    // Half keeps contour a dead-flat pad loses and still lets a putt stop.
+    // The blend spans gr*2.4, not gr: at gr it is only full at the green's
     // exact centre, so the rest of the surface takes the raw hill.
     const k = smoothStep(1 - dg/(hole.gr*2.4));
-    //h = h + (hole.greenH-h) * k;
     h = lerp(h, hole.greenH, k*GREEN_FLAT) + k*greenBump;
     // THE BANK. surfaceAt cuts the green off at gr while the plateau above
     // reaches 2.4x that, so at a green with a lake at its rim the ground
@@ -378,11 +383,11 @@ function genHole(courseSeed, index, row)
     for (const w of hole.waters)
         w.h = Math.min(heightRaw(w.x, w.z), hole.greenH)-2;
 
-    // trees {x, z, s: size, c: colour jitter, k: kind} - k 0 = full tree,
-    // 1 = far tree (one canopy), 2 = bush, 3 = wildflower; ODD kinds are scenery
+    // props (see trunkH for the kinds)
     const addTree = (x, z, s, k)=> hole.trees.push({x, z, s, k});
 
-    // framing trees: scattered outside the fairway along the hole
+    // framing trees: scattered outside the fairway along the hole. The long
+    // par 3 in the classic deal (index 4) is framed by trees twice the size.
     const treeCount = Math.min(400, treeDen*len*.5 | 0);
     const treeScale = index != 4 || remixMode || 2;
     for (let i=treeCount; i-- && hole.trees.length<treeCount;)
@@ -454,9 +459,10 @@ function genHole(courseSeed, index, row)
 
 // The 18 hole rows. REMIX is the classic course RE-DEALT: the same rows
 // shuffled under a seed that also re-rolls every hole's land, pin and
-// scenery, and the index-keyed specials (river 10, island 12, hard tree 13)
-// dress whatever row arrives there. The shuffle MUST derive from the SEED
-// the save stores, or a continued remix round would re-deal a new order.
+// scenery. The index-keyed specials (river 10, hard tree 13) dress whatever
+// row arrives there; the islands travel with their rows. The shuffle MUST
+// derive from the SEED the save stores, or a continued remix round would
+// re-deal a new order.
 function genCourse(seed, remix)
 {
     if (!remix)
