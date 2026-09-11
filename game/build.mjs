@@ -21,7 +21,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // one back, add `buffer += '<title>SUNSHINE GOLF CLASSIC</title>';` to
 // htmlBuildStep - it costs 22 plus a byte or so per character.
 const PROGRAM_NAME = 'game';
-const BUILD_FOLDER = 'build';
+// --wavedash: the Wavedash build. Same pipeline and shell, the WAVEDASH
+// hooks compiled in, its own folder, no zip and no size gate (the platform
+// upload has none). The default build folds the hooks out (applyWavedashFlag).
+// --raw: the Wavedash build UNMINIFIED - the same concatenated source in the
+// same shell, no Closure/uglify/roadroller, into build-raw/. For reading a
+// stack trace from the platform; never uploaded.
+const RAW_BUILD = process.argv.includes('--raw');
+const WAVEDASH_BUILD = RAW_BUILD || process.argv.includes('--wavedash');
+const BUILD_FOLDER = RAW_BUILD ? 'build-raw' : WAVEDASH_BUILD ? 'build-wavedash' : 'build';
 const SIZE_LIMIT = 13312; // JS13K limit in bytes
 
 // Turn off engine features your game does not use to save space.
@@ -31,7 +39,7 @@ const FEATURES =
 {
     webgl:   false, // the engine's WebGL renderer is replaced by the game's glRender.js
     touch:   true,  // touch input and the on screen touch gamepad
-    gamepad: false, // gamepad input
+    gamepad: WAVEDASH_BUILD, // gamepad input: the Wavedash build only (gamepad.js)
     sound:   true,  // all audio
     physics: false, // ball physics is custom, no engine solver needed
     // image-rendering:pixelated is for pixel art, and this game is smooth 3D
@@ -112,6 +120,8 @@ const sourceFiles =
     'glRender.js',
     'view3d.js',
     'sfx.js',
+    'wavedash.js',
+    'gamepad.js',
     'game.js',
     'debugGame.js',
     'hud.js',
@@ -131,34 +141,43 @@ try
 {
     // remove old files and setup build folder
     fs.rmSync(BUILD_FOLDER, { recursive: true, force: true });
-    fs.rmSync(`${PROGRAM_NAME}.zip`, { force: true });
+    WAVEDASH_BUILD || fs.rmSync(`${PROGRAM_NAME}.zip`, { force: true });
     fs.mkdirSync(BUILD_FOLDER);
 
     // copy data files
     for (const file of dataFiles)
         fs.copyFileSync(file, `${BUILD_FOLDER}/${file}`);
 
-    const buildSteps = [closureCompilerStep, uglifyBuildStep];
-    if (USE_ROADROLLER)
+    const buildSteps = RAW_BUILD ? [] : [closureCompilerStep, uglifyBuildStep, wavedashCheckStep];
+    if (USE_ROADROLLER && !RAW_BUILD)
         buildSteps.push(roadrollerBuildStep);
-    buildSteps.push(htmlBuildStep, zipBuildStep);
+    buildSteps.push(htmlBuildStep);
+    WAVEDASH_BUILD || buildSteps.push(zipBuildStep);
 
     Build(`${BUILD_FOLDER}/index.js`, sourceFiles, buildSteps);
 }
 catch (e) { handleError(e, 'Build failed!'); }
 
-// report size against the JS13K budget
-const size = fs.statSync(`${PROGRAM_NAME}.zip`).size;
-const percent = (100*size/SIZE_LIMIT).toFixed(1);
+// report size: the js13k zip against its budget, the Wavedash page for the record
 console.log('');
 console.log(`Build completed in ${((Date.now() - startTime)/1e3).toFixed(2)} seconds!`);
-console.log(`${PROGRAM_NAME}.zip: ${size} / ${SIZE_LIMIT} bytes (${percent}%)`);
-if (size > SIZE_LIMIT)
+if (WAVEDASH_BUILD)
 {
-    console.error(`OVER BUDGET by ${size - SIZE_LIMIT} bytes!`);
-    process.exit(1);
+    const size = fs.statSync(`${BUILD_FOLDER}/index.html`).size;
+    console.log(`${BUILD_FOLDER}/index.html: ${size} bytes (${RAW_BUILD ? 'raw unminified' : 'Wavedash'} build, no size limit)`);
 }
-console.log(`${SIZE_LIMIT - size} bytes remaining`);
+else
+{
+    const size = fs.statSync(`${PROGRAM_NAME}.zip`).size;
+    const percent = (100*size/SIZE_LIMIT).toFixed(1);
+    console.log(`${PROGRAM_NAME}.zip: ${size} / ${SIZE_LIMIT} bytes (${percent}%)`);
+    if (size > SIZE_LIMIT)
+    {
+        console.error(`OVER BUDGET by ${size - SIZE_LIMIT} bytes!`);
+        process.exit(1);
+    }
+    console.log(`${SIZE_LIMIT - size} bytes remaining`);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -180,6 +199,7 @@ function Build(outputFile, files=[], buildSteps=[])
     buffer = applyFeatureFlags(buffer);
     buffer = stripEngineMethods(buffer);
     buffer = stripEngineCode(buffer);
+    buffer = applyWavedashFlag(buffer);
 
     // output file
     fs.writeFileSync(outputFile, buffer, {flag: 'w+'});
@@ -218,6 +238,23 @@ function applyFeatureFlags(buffer)
     return buffer;
 }
 
+// Files that compile in only for the --wavedash build (wavedash.js hooks,
+// gamepad.js control): the js13k build rewrites each `const FLAG = 1` to 0
+// and Closure folds everything behind it out. Exact match, fails loudly.
+function applyWavedashFlag(buffer)
+{
+    if (WAVEDASH_BUILD)
+        return buffer;
+    for (const flag of ['WAVEDASH', 'GAMEPAD'])
+    {
+        const pattern = new RegExp(`^const ${flag} = 1;`, 'm');
+        if (!pattern.test(buffer))
+            handleError(`could not find "const ${flag} = 1;"`, 'Failed to disable ' + flag);
+        buffer = buffer.replace(pattern, `const ${flag} = 0;`);
+    }
+    return buffer;
+}
+
 function stripEngineCode(buffer)
 {
     for (const [what, pattern, replacement] of STRIP_CODE)
@@ -231,6 +268,11 @@ function stripEngineCode(buffer)
 
 function stripEngineMethods(buffer)
 {
+    // js13k only: the engine's gamepad code, live in the Wavedash build,
+    // calls clampLength -> length, which this deletes (the crash was
+    // "t.length is not a function" on the first stick read)
+    if (WAVEDASH_BUILD)
+        return buffer;
     for (const className in STRIP_METHODS)
     {
         const classStart = buffer.indexOf('\nclass ' + className + '\n');
@@ -263,7 +305,9 @@ function closureCompilerStep(filename)
     fs.copyFileSync(filename, filenameTemp);
     try
     {
-        execSync(`npx google-closure-compiler --js=${filenameTemp} --js_output_file=${filename} --compilation_level=ADVANCED --warning_level=VERBOSE --jscomp_off=* --assume_function_wrapper`, {stdio: 'inherit'});
+        // externs only for the Wavedash build: the js13k build has no SDK call
+        const externs = WAVEDASH_BUILD ? ' --externs=wavedash.externs.js' : '';
+        execSync(`npx google-closure-compiler --js=${filenameTemp} --js_output_file=${filename} --compilation_level=ADVANCED --warning_level=VERBOSE --jscomp_off=* --assume_function_wrapper${externs}`, {stdio: 'inherit'});
     }
     catch (e) { handleError(e, 'Closure Compiler step failed!'); }
     if (DEBUG_BUILD)
@@ -281,6 +325,33 @@ function uglifyBuildStep(filename)
     catch (e) { handleError(e, 'Uglify step failed!'); }
     if (DEBUG_BUILD)
         fs.copyFileSync(filename, filename+'.uglify.js');
+};
+
+// Runs on the uglify output, BEFORE roadroller packs the text away. The
+// js13k build must carry nothing Wavedash; the Wavedash build must keep
+// every SDK property name it calls, which Closure ADVANCED renames unless
+// wavedash.externs.js declares it (the roundRect class of bug: the game
+// would sit behind the platform's loading screen forever).
+function wavedashCheckStep(filename)
+{
+    const js = fs.readFileSync(filename, 'utf8');
+    if (!WAVEDASH_BUILD)
+    {
+        if (js.includes('Wavedash'))
+            handleError('"Wavedash" survived in the js13k build', 'Wavedash flag did not fold out');
+        if (js.includes('getGamepads'))
+            handleError('"getGamepads" survived in the js13k build', 'GAMEPAD flag did not fold out');
+        return;
+    }
+    for (const name of ['.Wavedash', '.init(', '.setAchievement(',
+        '.getOrCreateLeaderboard(', '.uploadLeaderboardScore(', '.success', '.data.id',
+        '.requestStats(', '.getStat(', '.setStat(', '.storeStats(',
+        '.downloadRemoteFile(', '.readLocalFile(', '.writeLocalFile(', '.uploadRemoteFile(',
+        'TextEncoder', 'TextDecoder', '.encode(', '.decode(', '{passive:',
+        'getGamepads']) // the pad ships with the Wavedash build
+        if (!js.includes(name))
+            handleError(`"${name}" missing from the minified output`,
+                'Wavedash call lost to Closure - check wavedash.externs.js');
 };
 
 function roadrollerBuildStep(filename)

@@ -15,6 +15,9 @@
   "scripts": {
     "start": "node serve.js",
     "build": "node game/build.mjs",
+    "build:wavedash": "node game/build.mjs --wavedash",
+    "build:raw": "node game/build.mjs --raw",
+    "walk:wavedash": "node game/tools/wavedash-walk.mjs",
     "sim": "node game/tools/sim.mjs",
     "unit": "node game/tools/unit.mjs",
     "shots": "node game/tools/shots.mjs",

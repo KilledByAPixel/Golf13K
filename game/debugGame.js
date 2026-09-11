@@ -20,7 +20,7 @@
  *  THE DEBUG KEYS ARE OFF BY DEFAULT. This build is PUBLIC as the "enhanced
  *  version" on GitHub Pages, so every key below is gated on CHEATS(), a
  *  console toggle held in localStorage['sg_cheats'] exactly like SKIP().
- *  N (enhanced mode) and the gamepad are not cheats and stay live.
+ *  N (pad on/off) is not a cheat and stays live; the pad itself is gamepad.js.
  *
  *  LOAD ORDER: after game.js, before hud.js. Only hud.js runs anything at
  *  load time (engineInit at its bottom), so every const here is
@@ -51,27 +51,7 @@ let showColl = 0;   // C: draw the collision volumes
 let cheatsOn = !!localStorage['sg_cheats'];
 
 ///////////////////////////////////////////////////////////////////////////////
-// ENHANCED MODE - the home for things the 13k build has no room for.
-// Free to the release: every read is behind `debug &&`, and build.mjs's
-// FEATURES.gamepad=false makes `gamepadsEnable` a constant false so Closure
-// deletes the engine's whole gamepad subsystem. N toggles it; starts ON.
-let enhanced = 1;
-
-// The engine folds the D-PAD into stick 0 (gamepadDirectionEmulateStick) with
-// its own dead zone, so ONE stick read covers analog and digital. Turning
-// stays analog (see devUpdate).
-const padOn = ()=> enhanced && isUsingGamepad;
-const padTurn = ()=> padOn() ? gamepadStick(0).x : 0;
-// club and distance STEP, not slide: D-pad = club, shoulders = distance
-const padClub = ()=> padOn() ? gamepadWasPressed(13) - gamepadWasPressed(12) : 0;
-const padDist = ()=> padOn() ? gamepadWasPressed(4) - gamepadWasPressed(5) : 0;
-// A is the click - every phase of the swing, exactly like Space
-const padClick = ()=> padOn() && gamepadWasPressed(0);
-// B (landing preview) and X (spin, button 2) are handled in devUpdate
-
-// pad menu row, 0 CONTINUE / 1 CLASSIC / 2 REMIX; only drawn once a pad is used
-let padMenu = 1; // CLASSIC: the row a new player wants
-let padHeld = 0; // stick already pushed sideways, so a hold steps once
+// DEV STATE (the gamepad itself is gamepad.js; N toggles padEnabled there)
 let gridAid = 0;    // G: the slope-grid landing aid instead of the ring
 let grabShot = 0;   // K arms it here, gameRenderPost takes it (see saveShot)
 // distance at the FIRST TOUCHDOWN, latched once per shot; -1 = not down yet
@@ -401,17 +381,6 @@ function devHud(midX, T)
     }
     if (puttMode)
         txt('PUTT MODE - HOLING OUT RE-DROPS · P EXITS', midX, T-T*.04, T*.024);
-    // THE PAD'S MENU HIGHLIGHT, drawn BEFORE the title menu: the button is
-    // filled #000a, so a bright rounded rect UNDER it is a solid outline where
-    // it overhangs and a tint where the button covers it. No hook in hud.js.
-    if (padOn() && state == ST_TITLE && !DEV_THUMBNAIL)
-    {
-        const r = menuRect(padMenu), p = r.h*.08, c = overlayContext;
-        c.fillStyle = GOLD;
-        c.beginPath();
-        c.roundRect(r.x-p, r.y-p, r.w+p*2, r.h+p*2, r.h*.38);
-        c.fill();
-    }
     // top centre, between the corner readouts hud.js owns. Deliberately does
     // NOT return 1: the point is to watch the bot through the normal HUD.
     if (autoPlay)
@@ -469,17 +438,7 @@ function devUpdate()
     if (cheatsOn && keyWasPressed('KeyG') && !freeCam) // (G is the free cam's pitch-down)
         gridAid = !gridAid; // swap the landing ring for the slope grid
     if (keyWasPressed('KeyN'))
-        enhanced = !enhanced; // ENHANCED MODE (gamepad, and whatever follows)
-    // B on the pad = the landing preview, exactly what a click on the view
-    // does. The mouse path in updateAim is the reference, tick sound included.
-    if (padOn() && gamepadWasPressed(1) && state == ST_AIM)
-    {
-        placeView = !placeView, camEase = SETTLE_T;
-        snd_tick.play();
-    }
-    // back on gamepad
-    if (padOn() && gamepadWasPressed(8))
-        setState(ST_TITLE);
+        padEnabled = !padEnabled; // N: pad on/off (gamepad.js)
     // T: AI TEST MODE - the bot plays through the normal game so a round can
     // be WATCHED (same machinery as `?auto=1`: updateAim hands over to
     // botSwing). NOT while the free cam is up, where T is the pitch control.
@@ -518,61 +477,6 @@ function devUpdate()
         puttDrop();
     if (mapView)
         return 1; // game input frozen under the map
-    // ENHANCED MODE, the rest of the pad. Driven from HERE, not game.js:
-    // hooking pad input in as `+ (debug && pad...())` terms costs release
-    // bytes (Closure folds each to `+ 0` and keeps the addition, since `x + 0`
-    // is not `x` for a string), while calling the game's own functions from
-    // here is free. Only clickPressed, which the meter reads, is hooked.
-    // devUpdate runs before updateAim, so this frame's updatePredict sees it.
-    // THE TITLE MENU on a pad: A picks through menuPick, the mouse's own
-    // function, so the remix lock and the abandon confirm cannot drift.
-    if (padOn() && state == ST_TITLE)
-    {
-        // LEFT/RIGHT (the buttons sit side by side), wrapping. The stick
-        // counts too, latched so a held stick steps once.
-        const sx = gamepadStick(0).x, push = Math.abs(sx) > .5;
-        const dm = gamepadWasPressed(15) - gamepadWasPressed(14)
-            || (push && !padHeld ? Math.sign(sx) : 0);
-        padHeld = push;
-        if (dm)
-        {
-            padMenu = mod(padMenu + dm, 3);
-            snd_tick.play();
-        }
-        // SWALLOW THE FRAME after a pick: devUpdate runs BEFORE gameUpdate
-        // dispatches on `state`, so the new state's update would run in this
-        // same frame, see the same A "was pressed" and skip the flyback.
-        if (gamepadWasPressed(0))
-        {
-            menuPick(padMenu + 1);
-            return 1;
-        }
-    }
-    if (padOn() && state == ST_AIM)
-    {
-        // stick up/down = analog distance; no sound, a tick a frame is a buzz
-        const sy = gamepadStick(0).y;
-        if (sy)
-            setTarget(shotTarget + sy*.25);
-        // X = spin, which the release only offers on the chip
-        if (gamepadWasPressed(2))
-            clubI == CLUB_PUTTER || cycleSpin(); // still no spin on a putt
-        // ANALOG TURN, no turnHold ramp: a stick already gives magnitude
-        aimYaw += padTurn()*.002;
-        const dc = padClub();
-        if (dc)
-        {
-            clubI = mod(clubI + dc, CLUBS.length);
-            resetTarget();
-            snd_adjust.play();
-        }
-        const dd = padDist();
-        if (dd)
-        {
-            setTarget(shotTarget - dd*TARGET_STEP);
-            snd_adjust.play();
-        }
-    }
     if (!freeCam)
         return;
 
@@ -631,9 +535,6 @@ function devUpdate()
 
 function devInit()
 {
-    // engine settings
-    gamepadDirectionEmulateStick = false;
-
     // pick the telemetry log back up (see tlog). Here, not at the declaration,
     // so it stays behind `debug`: Closure cannot fold a file-scope side effect
     try { telem = JSON.parse(localStorage['sg_telem']) || []; } catch {}
@@ -680,7 +581,7 @@ function devInit()
                 no flyback, right back to the shot. Kept in localStorage, so
                 it survives edits and rebuilds. Free cam, ?hole=, ?auto= and
                 ?putt= all take over instead when present.
-  URL    ?hole=N &seed=S &auto=1 &fast=1 &putt=1 &trees=K &remix=1
+  URL    ?hole=N &seed=S &auto=1 &fast=1 &putt=1 &trees=K &remix=1 &wd=1 (log SDK calls)
   HOOKS  DBG() JUMP(h) SWING() PREVIEW(v) NICE() HOLEOUT()
          WIND(speed, degrees) - degrees is the way the wind PUSHES the
          ball: 0 downrange, 90 right, 180 into your face. ~4yd of
@@ -718,6 +619,36 @@ function devInit()
     const asp = localStorage['sg_aspect'];
     if (asp) canvasFixedSize = vec2(...asp.split(',').map(Number));
     const q = new URLSearchParams(location.search);
+    // ?wd=1: a fake window.Wavedash that logs every SDK call, so the hooks
+    // in wavedash.js can be watched here without the platform. Installed
+    // before gameInit calls wdInit, which is why it lives in devInit.
+    // ?wd=2 also seeds a cloud save (classic beaten at -1) so an EMPTY
+    // browser can be watched adopting it: REMIX lights up on the title.
+    if (q.get('wd'))
+    {
+        const log = (f)=> (...a)=> (console.log('WAVEDASH', f, ...a), 1);
+        window.Wavedash =
+        {
+            init: log('init'),
+            setAchievement: log('setAchievement'),
+            getOrCreateLeaderboard: (name, ...a)=>
+                (log('getOrCreateLeaderboard')(name, ...a),
+                 Promise.resolve({success: 1, data: {id: name}})),
+            uploadLeaderboardScore: log('uploadLeaderboardScore'),
+            // stats: a live in-memory table, so totals can be watched growing
+            stats: {},
+            requestStats: ()=> (log('requestStats')(), Promise.resolve({success: 1})),
+            getStat(id) { return this.stats[id] || 0; },
+            setStat(id, v) { this.stats[id] = v; log('setStat')(id, v); },
+            storeStats: log('storeStats'),
+            // cloud save: files by path, seeded from ?wd=2
+            files: q.get('wd') == 2 ? {'save.json': new TextEncoder().encode('{"sg_best_c":"-1"}')} : {},
+            downloadRemoteFile(p) { log('downloadRemoteFile')(p); return Promise.resolve({success: !!this.files[p], data: p}); },
+            readLocalFile(p) { return Promise.resolve(this.files[p] || null); },
+            writeLocalFile(p, d) { this.files[p] = d; log('writeLocalFile')(p, new TextDecoder().decode(d)); return Promise.resolve(true); },
+            uploadRemoteFile: log('uploadRemoteFile'),
+        };
+    }
     autoPlay = +q.get('auto') || 0;
     fastMode = +q.get('fast') || 0;
     if (q.get('trees') != null) forestMul = +q.get('trees'); // forest density knob

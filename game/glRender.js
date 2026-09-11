@@ -125,15 +125,18 @@ function glInit(rootElement)
         'out vec4 c;'+
         'void main(){'+
         'float z=gl_FragCoord.z/gl_FragCoord.w*f.w;'+
-        // fog: blend toward the haze color with distance (yards), then
-        // alpha-fade at the far edge into the clear colour
-        'c=q>0.?d:vec4(mix(d.xyz,f.xyz,clamp(z*z/5e5,0.,1.)),d.w*clamp(4.-z/200.,0.,1.));'+
+        // fog toward the haze with distance (yards). It reaches PURE haze by
+        // ~470yd out, before the terrain grid ends (630+), and the clear colour
+        // IS the haze, so the edge of the world needs no separate fade and
+        // opaque geometry never needs alpha - the static pass draws with
+        // blending off. Only the fog-exempt batch (q>0) uses its alpha.
+        'c=q>0.?d:vec4(mix(d.xyz,f.xyz,clamp(z*z/5e5,0.,1.)),d.w);'+
         'c.xyz*=c.w;'+                // premultiply
         '}'
     );
     glContext.useProgram(glShader);
     glContext.blendFunc(gl_ONE, gl_ONE_MINUS_SRC_ALPHA);
-    glContext.enable(gl_BLEND);
+    // (blending is enabled per frame in renderViewGL, after the opaque world)
     glContext.enable(gl_DEPTH_TEST); // no face culling: mixed strip windings
     glStaticBuffer = glContext.createBuffer();
     glSetBuffer(glDynamicBuffer = glContext.createBuffer());
@@ -907,12 +910,17 @@ function renderViewGL()
 {
     glPreRender();
 
-    // option: draw the world with blending off (if seams ever show)
-    const DISABLE_BLEND = 0;
-    DISABLE_BLEND && glContext.disable(gl_BLEND);
+    // THE STATIC WORLD IS OPAQUE AND DRAWS WITH BLENDING OFF. Blending left on
+    // across opaque geometry opens thin dark cracks along shared mesh edges
+    // at grazing angles under MSAA on some drivers (NVIDIA on D3D11); the
+    // mesh itself is watertight. Nothing in this stream needs alpha: the fog
+    // mix reaches pure haze before the grid ends (fragment shader), and water
+    // and foliage carry alpha only as a vertex-shader band marker. Blending
+    // is enabled HERE for the rest of the frame, not in glInit.
+    glContext.disable(gl_BLEND);
     glSetBuffer(glStaticBuffer);
     glContext.drawArrays(gl_TRIANGLE_STRIP, 0, glStaticCount);
-    DISABLE_BLEND && glContext.enable(gl_BLEND);
+    glContext.enable(gl_BLEND);
     // OPAQUE dynamic props, writing depth like the world does
     pushPinGL();
     pushBallGL();

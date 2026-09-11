@@ -38,9 +38,9 @@ let savedGame = localStorage['sg_save'];
 // helpers
 
 const clickPressed = ()=> mouseWasPressed(0) || keyWasPressed('Space')
-    || debug && padClick(); // pad A (debugGame.js) - the ONLY pad hook in the
-    // shipped files, since the meter reads this; the rest of what the pad
-    // does is devUpdate calling the game's own functions
+    || GAMEPAD && padClick(); // pad A (gamepad.js) - the ONLY pad hook here
+    // besides the meter start, since the meter reads this; the rest of what
+    // the pad does is padUpdate calling the game's own functions
 
 function setState(s) { state = s; stateTime = 0; }
 
@@ -219,6 +219,7 @@ function endHole()
     // which is what continueGame reads to know the hole is done. NOT on 18:
     // that would name a 19th hole, and nextHole clears the save there anyway.
     holeIndex < 17 && saveGame();
+    wdHole(strokes, hole.par);
     setState(ST_HOLEOUT);
 }
 
@@ -236,6 +237,7 @@ function nextHole()
             localStorage[key] = rel;
         // nothing left to continue; '' is falsy, so it reads like an absent key
         localStorage['sg_save'] = savedGame = '';
+        wdRound(remixMode, rel); // after the best is written: it uploads it
         // no results state: hole 18's card IS the results card
         setState(ST_TITLE);
     }
@@ -419,7 +421,7 @@ function updateAim()
     // The pad's A is named HERE as well as in clickPressed: starting the meter
     // is the one click the game does not route through it.
     else if (keyWasPressed('Space') || (mouseWasPressed(0) && mouseOverMeter())
-        || debug && padClick())
+        || GAMEPAD && padClick())
     {
         snd_adjust.play();
         meterStart();
@@ -547,6 +549,7 @@ function updateFlight()
         // resolve the shot result after a beat
         const ev = ballEvent;
         ballEvent = 0;
+        wdShot(); // before the hole-out return, so a strike on the holing shot counts
         if (debug)
         {
             // CARRY is where it first came down (what clears a hazard), TOTAL
@@ -659,6 +662,8 @@ function gameInit()
     setState(ST_TITLE);
 
     debug && devInit(); // debugGame.js: console help, URL params, hooks
+    padInit(); // gamepad.js
+    wdInit(); // last: the platform's loading screen drops here
 }
 function gameUpdate()
 {
@@ -668,6 +673,8 @@ function gameUpdate()
 
     // debugGame.js: debug keys and the free cam; returns 1 when it swallowed the frame
     if (debug && devUpdate())
+        return;
+    if (padUpdate()) // gamepad.js, after the debug layer
         return;
 
     // music in the quiet states only - never under a swing

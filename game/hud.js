@@ -54,6 +54,7 @@ function gameRenderPost()
     // cam owns the frame and no game HUD should draw over it.
     if (debug && devHud(midX, T))
         return;
+    padHud(); // gamepad.js: the menu cursor, under the buttons
 
     if (state == ST_TITLE || DEV_THUMBNAIL)
     {
