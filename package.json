@@ -1,7 +1,7 @@
 {
-  "name": "rainbow-golf-tour",
+  "name": "sunshine-golf-classic",
   "version": "0.11.0",
-  "description": "RAINBOW GOLF TOUR - procedural 18-hole golf for JS13K 2026, built on LittleJS (js13k branch)",
+  "description": "SUNSHINE GOLF CLASSIC - procedural 18-hole golf for JS13K 2026, built on LittleJS (js13k branch)",
   "keywords": [
     "JS13K",
     "LittleJS",
