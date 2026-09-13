@@ -55,7 +55,7 @@ const CLASSIC_HOLES =
     // back: Cliffs - narrow, hilly, mean
     [4,1.05, 30,   .5, 3, .5,1.2,1.1],  // the tree in the fairway
     [4,1.10, 28,   -1, 1,  0,1.2,1.3],  // the HILLS are the hazard, plus one drive-zone bunker; no water
-    [5,1.05, 30,  2.2, 2, .9,1.0,  .8],  // hairpin par 5 (see dogleg note)
+    [5,1.05, 30,  2.2, 2, .9,.3,  .8],  // hairpin par 5 (see dogleg note)
     [3,1.10,  0,   0,  4, .5, .5,  1],  // bunkered par 3 over broken ground
     [4,1.10, 24,   1,  2, 0,.7, .5],  // NARROWEST fairway on the course
     [5,1.10, 30,   2,  2, .9,1,1.2],
