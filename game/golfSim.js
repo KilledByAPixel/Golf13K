@@ -30,15 +30,17 @@ const PUTT_MAX = 40;
 // putt. MUST stay above 1: a bar topping out exactly at the cup can only be
 // missed short, since every stroke that is not perfect at the very top falls
 // under it. It also has to keep the cup marker ON THE BAR, since that is only
-// drawn when it fits - at 1.5 the marker sits at 67% of the bar.
+// drawn when it fits - at 1.3 the marker sits at 77% of the bar.
 // A CONTOURED GREEN EATS PACE, so a putt dying short is the common miss.
-// MEASURED over every green, putts from 3 to 15yd all round the cup:
-//   1.2   88% reach the hole, 17% run more than 3yd past
-//   1.3   94%                 22%
-//   1.4   97%                 28%
-// Cutting the putts that cannot go in is worth the longer ones coming back;
-// 1.5 sits above the table, tuned by feel.
-const PUTT_OVER = 1.5;
+// MEASURED over every classic green and 40 remix courses, putts from 3 to
+// 15yd all round the cup, struck perfectly to the top of the bar:
+//   1.2   91% reach the hole, 53% drop, 12% run more than 3yd past
+//   1.3   96%                 57%       19%   <- here
+//   1.4   98%                 61%       24%
+//   1.5   99%                 64%       27%
+// Higher drops more perfect strikes but leaves longer comebacks, and it
+// scales with GREEN_FLAT: flatter greens eat less pace and want less.
+const PUTT_OVER = 1.3;
 // How hard a mis-timed second click PUSHES a putt offline. Its own number
 // because push/pull is an ANGLE: the .05 every other club uses is ten yards
 // of miss on a 200yd drive and two CENTIMETRES on a ten yard putt.
