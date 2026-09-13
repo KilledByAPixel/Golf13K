@@ -228,6 +228,10 @@ function inputInit()
     // mouse event handlers
     onmousedown   = (e)=>
     {
+        // a tap's compatibility mouse events follow its touchend: skip them, so
+        // a touch screen with a mouse attached keeps both
+        if (time < touchTime) return;
+
         // fix stalled audio requiring user interaction
         if (soundEnable && !headlessMode && audioContext && audioContext.state != 'running')
             audioContext.resume();
@@ -380,6 +384,9 @@ function vibrateStop() { vibrate(0); }
  *  @memberof Input */
 const isTouchDevice = !headlessMode && window.ontouchstart !== undefined;
 
+// mouse presses are ignored until this time, set by each touch event
+let touchTime;
+
 // touch gamepad internal variables
 let touchGamepadTimer = new Timer, touchGamepadButtons, touchGamepadStick;
 
@@ -399,13 +406,12 @@ function touchInputInit()
     document.addEventListener('touchmove',  (e) => handleTouch(e), { passive: false });
     document.addEventListener('touchend',   (e) => handleTouch(e), { passive: false });
 
-    // override mouse events
-    onmousedown = onmouseup = ()=> 0;
-
     // handle all touch events the same way
     let wasTouching;
     function handleTouchDefault(e)
     {
+        touchTime = time + .5;
+
         // fix stalled audio requiring user interaction
         if (soundEnable && !headlessMode && audioContext && audioContext.state != 'running')
             audioContext.resume();

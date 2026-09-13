@@ -216,18 +216,15 @@ function endHole()
     // this it still names the hole just finished and carries the ball in the
     // cup - Escape or a reload from here replayed the hole and lost its score.
     // The score is already pushed, so scores.length is now one PAST holeIndex,
-    // which is what continueGame reads to know the hole is done. NOT on 18:
-    // that would name a 19th hole, and nextHole clears the save there anyway.
-    holeIndex < 17 && saveGame();
+    // which is what continueGame reads to know the hole is done.
     wdHole(strokes, hole.par);
-    setState(ST_HOLEOUT);
-}
-
-function nextHole()
-{
-    if (++holeIndex >= 18)
+    if (holeIndex < 17)
+        saveGame();
+    else
     {
-        debug && autoPlay && console.log(`RESULT total ${relPar(overPar(18))}`);
+        // THE ROUND IS SETTLED WHEN THE LAST BALL DROPS, not when its card is
+        // dismissed: the card holds for seconds, and a reload or Escape there
+        // would lose the best and leave a save that replays the final shot.
         // Stored OVER OR UNDER PAR, not as a stroke total: a remix course
         // need not share the classic 18's par, so totals are not comparable.
         const key = (remixMode ? 'sg_best_r' : 'sg_best_c');
@@ -238,6 +235,15 @@ function nextHole()
         // nothing left to continue; '' is falsy, so it reads like an absent key
         localStorage['sg_save'] = savedGame = '';
         wdRound(remixMode, rel); // after the best is written: it uploads it
+    }
+    setState(ST_HOLEOUT);
+}
+
+function nextHole()
+{
+    if (++holeIndex >= 18)
+    {
+        debug && autoPlay && console.log(`RESULT total ${relPar(overPar(18))}`);
         // no results state: hole 18's card IS the results card
         setState(ST_TITLE);
     }

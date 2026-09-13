@@ -104,7 +104,7 @@ function gameRenderPost()
     else
     {
         const pad = T*.05; // breathing room off the screen top
-        txt(`HOLE ${holeIndex+1}  PAR ${hole.par}`, 18, pad, T*.04, 'left', WHITE, W*.5);
+        txt(`HOLE ${holeIndex+1}  PAR ${hole.par}`, 18, pad, T*.04, 'left', WHITE, W*.45);
         // the shot IN PLAY: strokes increments at impact, so aim and the
         // meter are one ahead of it and the flight is not
         txt(`${ballToPin()|0}yd TO PIN`, 18, pad+T*.05, T*.03, 'left');

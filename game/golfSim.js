@@ -357,7 +357,9 @@ function launchBall(clubI, power, impact, spin, dir, lieMul)
     // push/pull. An ANGLE, so a putt needs its own - see PUTT_PUSH
     dir += err*(putt ? PUTT_PUSH : .05);
     ballCurve = err*22; // hook/slice curve accel
-    ballSpin = spin;
+    // spin chosen on a club survives a switch to the putter, and a lip-out hop
+    // would read it
+    ballSpin = putt ? 0 : spin;
     shotBegin(!putt, dir);
     if (putt)
         // yards, not a speed: puttVel owns the v = sqrt(2fd) conversion, so
@@ -648,11 +650,13 @@ function ballUpdate()
     }
     else if (ballRolling)
     {
-        const g = ballGround();
-        if (hazardEnd(g.s)) return;
         ballSafe = ballXZ();
         const x0 = ball.x, z0 = ball.z;
         const sp = rollStep(ball);
+        // the hazard test comes AFTER the move: rollRest reads the ground the
+        // step started on, so a ball crawling over a flat shoreline would
+        // otherwise come to rest IN the lake
+        if (hazardEnd(ballGround().s)) return;
         const hit = cupHit(x0, z0);
         if (hit && sp < CUP_SPEED)
         {
