@@ -69,7 +69,7 @@ let lastDist;      // and the distance to it (periphery shading)
 let lastWater;     // the lake surfaceAt last returned SURF_WATER for
 // how far the green plateau stands above the raw terrain, and how much of
 // the natural relief it flattens (see heightAt)
-const greenBump = .5, GREEN_FLAT = .5;
+const greenBump = .5, GREEN_FLAT = .7;
 
 ///////////////////////////////////////////////////////////////////////////////
 // seeded value noise
