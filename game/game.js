@@ -763,15 +763,22 @@ function gameUpdatePost()
         {
             // A slow orbit of the pin at a FIXED height above the green (greenH
             // is constant for the hole, so nothing snaps over a bunker or slope).
-            // THE 12 IS A CLEARANCE, not a taste: some greens sit in a bowl whose
-            // rim is above them. Tightest gap over the orbit, classic 18 plus
-            // eight remix seeds: +8 goes 1.9yd UNDERGROUND, +10 clears by .1,
-            // +12 by 2.1, +14 by 4.1.
+            // CLOSE AND LOW: trees stand around every green and the camera must
+            // not fly through them. Height and distance keep ONE RATIO (.6), so
+            // the pin holds its place on screen. MEASURED with every tree drawn,
+            // classic 18 / 60 remix courses - holes whose orbit passes through
+            // foliage, and the lowest clearance over the terrain:
+            //   20 out, 12 up    11 of 18 / 60%    1.3yd
+            //   15 out,  9 up     8 of 18 / 35%    1.1yd
+            //   10 out,  6 up     3 of 18 / 10%    1.1yd   <- here
+            //    8 out, 4.8 up    1 of 18 /  2%     .9yd
+            // A LOWER RATIO BURIES IT: 10 out and 5 up goes underground on remix
+            // greens that sit in a bowl.
             camYaw = time*.1;
-            camX = hole.pin.x - Math.sin(camYaw)*20;
-            camZ = hole.pin.z - Math.cos(camYaw)*20;
-            camY = hole.greenH + 12;
-            // THE PITCH KNOB: from 20yd out and 12 up the pin sits 31 degrees
+            camX = hole.pin.x - Math.sin(camYaw)*10;
+            camZ = hole.pin.z - Math.cos(camYaw)*10;
+            camY = hole.greenH + 6;
+            // THE PITCH KNOB: from 10yd out and 6 up the pin sits 31 degrees
             // below the horizon, half-FOV 43.5, so it lands (31 - pitch) degrees
             // below centre. As a fraction of the half-screen: .54 centre, .30 a
             // third down (here), .06 two thirds, -.10 almost off. Raise to lift.
