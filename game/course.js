@@ -53,7 +53,7 @@ const CLASSIC_HOLES =
     [5,1.00, 36,   2, 2, .7,  1, .6],   // S par 5
     [4, .6, 30,   .9, 1,  1, .7, .3],   // island par 4 with bend, driver over the lake, or lay up and wedge
     // back: Cliffs - narrow, hilly, mean
-    [4,1.05, 30,   .5, 3, .5,1.2,1.1],  // the tree in the fairway
+    [4,1.05, 30,   .5, 2, .95,1.2,1.1],  // the tree in the fairway
     [4,1.10, 28,   -1, 1,  0,1.2,1.3],  // the HILLS are the hazard, plus one drive-zone bunker; no water
     [5,1.05, 30,  2.2, 2, .9,.3,  .8],  // hairpin par 5 (see dogleg note)
     [3,1.10,  0,   0,  4, .5, .5,  1],  // bunkered par 3 over broken ground

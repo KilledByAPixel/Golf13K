@@ -287,6 +287,13 @@ function meterUpdate(clicked)
 {
     if (meterPhase == 1)
     {
+        // the round trip is tested BEFORE the click: past 2 the cursor reads
+        // negative, and a putt launched at negative power rolls a NaN forever
+        if (meterT >= 2)
+        {
+            meterPhase = 0; // full round trip with no click, swing cancels
+            return MET_CANCEL;
+        }
         if (clicked)
         {
             meterPower = meterPos();
@@ -296,11 +303,6 @@ function meterUpdate(clicked)
             meterPhase = 2;
             meterT = meterPower;
             return MET_POWER;
-        }
-        if (meterT >= 2)
-        {
-            meterPhase = 0; // full round trip with no click, swing cancels
-            return MET_CANCEL;
         }
         meterT += DT/METER_UP_TIME;
     }
