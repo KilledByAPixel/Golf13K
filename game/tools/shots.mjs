@@ -56,10 +56,11 @@ const click = ()=> page.mouse.click(640, 400);
 // The title is a MENU (CONTINUE / CLASSIC / REMIX), so leaving it needs a
 // click ON a button, not anywhere. Closure renames menuRect away in the
 // release build, so this repeats its formula rather than querying it:
-// the three sit in a ROW at y = T*.62, each min(W*.31, T*.44) wide and
-// spaced 1.06 of that apart. KEEP IN SYNC with menuRect in game.js.
-const VW = 1280, VH = 720, MW = VW*.31;
-const clickMenu = (i)=> page.mouse.click(VW/2 + (i-1)*MW, VH*.62 + VH*.05);
+// the three sit in a ROW from y = T*.8, T*.18 tall (centre T*.89), each
+// W*.3 wide and spaced 1.1 of that apart. KEEP IN SYNC with menuRect in
+// game.js - the release walk below fails loudly if a click misses.
+const VW = 1280, VH = 720, MW = VW*.33;
+const clickMenu = (i)=> page.mouse.click(VW/2 + (i-1)*MW, VH*.89);
 // keyboard: LittleJS never registers Playwright's press() (down+up in one
 // task). A key must stay DOWN across a rendered frame, and a swiftshader
 // frame (or a hole rebuild) can outlast any fixed hold, so hold it until the
@@ -434,6 +435,10 @@ try
     if (fs.existsSync(release))
     {
         await page.goto(BASE + 'game/build/index.html', { waitUntil: 'load' });
+        // the dev pages above share this origin's localStorage: start from NO
+        // save, or the check after the swing could pass on an old one
+        await page.evaluate(()=> localStorage.removeItem('sg_save'));
+        await page.reload({ waitUntil: 'load' });
         await sleep(2500);
         await clickMenu(1); // title -> CLASSIC (the centre button)
         await sleep(1200);
@@ -452,6 +457,15 @@ try
         await shot('26-release-flight');
         await sleep(7000);
         await shot('27-release-settled');
+        // PROVE THE WALK PLAYED: with no DBG hook the error gate alone passes
+        // on a page stuck at the title. The swing writes the save with its
+        // stroke counted: [seed, hole, windA, windS, x, z, strokes, ...].
+        const save = await page.evaluate(()=> localStorage.getItem('sg_save'));
+        const strokes = save ? +save.split(',')[6] : 0;
+        if (!(strokes >= 1))
+            errors.push(`RELEASE: the walk never swung (sg_save = ${JSON.stringify(save)}) - check clickMenu against menuRect in game.js`);
+        else
+            console.log(`release walk swung: sg_save strokes = ${strokes}`);
     }
     else
         console.log('build/index.html missing - run "npm run build" first (release check skipped)');

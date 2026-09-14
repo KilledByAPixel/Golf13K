@@ -289,7 +289,9 @@ function continueGame()
     // taken at the card has scores.length one PAST it - the next hole, teed.
     holeIndex = scores.length;
     courseRows = genCourse(courseSeed, remixMode);
-    startHole({a: s[2], s: s[3]});
+    // the saved wind belongs to the SAVED hole: a save taken at the card
+    // continues onto the next hole, which rolls its own
+    startHole(s[1] == holeIndex && {a: s[2], s: s[3]});
     // startHole tees the ball and zeroes the card, so a shot IN PROGRESS is
     // put back after it. y is not stored - the terrain is the same terrain.
     if (s[1] == holeIndex)

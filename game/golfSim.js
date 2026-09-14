@@ -371,7 +371,9 @@ function launchBall(clubI, power, impact, spin, dir, lieMul)
         puttVel(ball, power*PUTT_MAX, dir);
     else
     {
-        launchVel(ball, clubI, dir, lieMul, Math.max(.05, power), spin);
+        // NO POWER FLOOR: predictLanding flies this exact power, so the ring
+        // stays true down to a one yard chip
+        launchVel(ball, clubI, dir, lieMul, power, spin);
         ball.y = ballGround().h + .1;
     }
     return err;
